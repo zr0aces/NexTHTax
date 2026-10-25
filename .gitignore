@@ -1,6 +1,0 @@
-node_modules/
-dist/
-test-results/
-playwright-report/
-# Taxpayer data must never be committed. Keep synthetic fixtures under tests/fixtures only.
-*.local-workspace/
