@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Workspace, TaxYearData, TaxRecord, RuleSet } from "./domain/model";
 import { getRules } from "./domain/rules";
 import { replaceYearRules } from "./domain/workspace";
+import { applyFixedDrafts, type FixedDraft } from "./domain/fixed-allowances";
 import { createWorkspace, exportZip, importZip, FolderSession, restoreBackup, assertCarrySources } from "./storage";
 import { download } from "./reports/download";
 export type Mode="folder"|"zip"|"sample";
@@ -46,6 +47,20 @@ export function useWorkspace(){
   const candidate:Workspace={...ws,files:new Map([...ws.files,...files]),years:{...ws.years,[year]:{...d,records:exists?d.records.map(r=>r.id===record.id?record:r):[...d.records,record],profile:{...d.profile,selectedCategories:d.profile.selectedCategories.includes(record.categoryId)?d.profile.selectedCategories:[...d.profile.selectedCategories,record.categoryId]}}}};
   assertCarrySources(candidate);commit(candidate);
  }
+ /** Atomic annual upsert for fixed allowances. Optional backup is downloaded before the single commit. */
+ async function saveFixedAllowanceClaims(drafts:FixedDraft[],files:Map<string,Uint8Array>,expected:Workspace,recordYear:number,backupFirst:boolean){
+  const ws=current.current;
+  if(!ws||ws!==expected||year!==recordYear)throw new Error("แฟ้มเปลี่ยนไปแล้ว กรุณาเปิดสิทธิอีกครั้ง งานเดิมไม่ถูกเขียนทับ");
+  if(backupFirst){
+   if(!beginOperation())throw new Error("กำลังดำเนินการอยู่ กรุณารอสักครู่");
+   try{download(await exportZip(ws),`tax-before-fixed-${recordYear}.zip`,"application/zip");assertCurrent(ws);}
+   finally{endOperation();}
+  }
+  if(current.current!==ws)throw new Error("แฟ้มเปลี่ยนระหว่างสำรอง ยกเลิกการบันทึกเพื่อรักษางานปัจจุบัน");
+  const next=applyFixedDrafts(ws.years[recordYear],drafts);
+  const candidate:Workspace={...ws,files:new Map([...ws.files,...files]),years:{...ws.years,[recordYear]:next}};
+  assertCarrySources(candidate);commit(candidate);
+ }
  const statusText=status==="saving"?"กำลังบันทึก…":status==="error"?"บันทึกไม่สำเร็จ":status==="dirty"?(mode==="folder"?"รอบันทึก":"ยังไม่ได้ส่งออก ZIP"):mode==="folder"?"บันทึกแล้ว":mode==="sample"?"ตัวอย่างสมมติ":"ไม่มีการแก้ไขค้างในหน้านี้";
- return {workspace,current,mode,status,statusText,year,setYear,error,setError,busy,notice,setNotice,load,commit,updateYear,mayLeave,create,openFolder,openZip,saveZip,save,recover,applyRules,saveRecord};
+ return {workspace,current,mode,status,statusText,year,setYear,error,setError,busy,notice,setNotice,load,commit,updateYear,mayLeave,create,openFolder,openZip,saveZip,save,recover,applyRules,saveRecord,saveFixedAllowanceClaims};
 }

@@ -225,19 +225,32 @@ Expected outcome: สิทธิ fixed เลือกได้ตรงคว�
 
 ## Implementation checklist
 
-1. [ ] บันทึก baseline และเพิ่ม fixture สิทธิ fixed ใน `tests/fixed-allowances.test.ts` โดยใช้ snapshot ปัจจุบัน: ส่วนตัว/คู่สมรส/จำนวน/legacy duplicate/pending/date window; ตรวจผลเดิมกับ `tests/engine.test.ts` ก่อน structural edits
-2. [ ] สร้าง `src/domain/fixed-allowances.ts` สำหรับ classification, compatible annual rules, count validation, contributors และ potential/included/pending projection; ให้ `src/domain/engine.ts` reuse เฉพาะ logic ที่มีอยู่แทน ID/count logic ซ้ำ; ทดสอบผลคำนวณและภาษีเดิมไม่เปลี่ยน
-3. [ ] เพิ่ม pure annual-upsert/batch preparation ใน domain helper และ `saveFixedAllowanceClaims` ใน `src/use-workspace.ts` ที่ใช้ expected workspace/year guard เดิม ตรวจทุก record ด้วย `recordSchema` ก่อน commit และคง invariant เดียวกับ `saveRecord` (เพดาน 5,000 รายการ, เพิ่ม `selectedCategories`, `assertCarrySources`); ทดสอบ stable ID, cancel, duplicate conflict, partial failure และ child+additional atomicity
-4. [ ] เพิ่ม `src/ui/fixed-allowance-editor.tsx` ใช้ Modal/file staging/preview เดิม: จำนวนและ confirmation อยู่ส่วนหลัก คำนวณสด และเอกสาร optional; เพิ่ม UI tests ใน `tests/e2e/fixed-allowances.spec.ts` สำหรับไม่มี required paid/date/title, quantity และ acknowledgement
-5. [ ] เปลี่ยน routing เฉพาะ entry points ใน `src/App.tsx` และ `src/ui/record-editor.tsx` ให้ known fixed เปิด composer, actual expense เปิด form เดิม; เตือนก่อนทิ้ง draft และป้องกันปิดระหว่าง submit; ทดสอบหมวด pending และการกลับไปจ่ายจริงไม่เปลี่ยนข้อมูล
-6. [ ] เพิ่มแผง `src/ui/fixed-allowance-panel.tsx` และผูกใน `src/ui/overview.tsx`: personal readonly, known selectable annual rows, potential/included/pending count; เอาเฉพาะ fixed ออกจาก progress cards เดิม; ทดสอบ unchecked amount 0 ยังแสดงงานรอตรวจ
-7. [ ] ปรับ `src/ui/records.tsx`, `src/ui/prepare.tsx`, `src/ui/format.ts` ให้ fixed แสดงปีสิทธิ/ยอดสิทธิ/สถานะแยกเอกสาร และ route edit/attach ไป record เดิม; ทดสอบ contributor/duplicate ไม่แสดงยอดซ้ำ
-8. [ ] ใช้ projection ร่วมใน `src/reports/annual-report.tsx` และ `src/storage/zip.ts` ส่วน searchIndex เท่านั้น เพิ่มคอลัมน์ CSV แบบไม่เปลี่ยนความหมายเดิมและระบุ fixed vs paid ใน PDF/index; เพิ่ม assertions ใน unit/report tests และ E2E ว่า fixed claim ไม่กลายเป็น 0 บาทหรือ fake payment date; ให้ `scripts/verify-pdf.mjs` รับ path/ข้อความเป็น optional argument (ค่าเริ่มต้นเดิมไม่เปลี่ยน) และให้ E2E fixed สร้าง `test-results/artifacts/fixed-allowance.pdf`
-9. [ ] ทำ legacy conflict review ใน fixed editor พร้อม preview/สำรอง/explicit canonical selection; ไม่เปลี่ยนหลักฐานหรือ record อื่นโดยเงียบ ๆ; ทดสอบเก่าเปิดโดยไม่แก้ไม่เปลี่ยน bytes/IDs และ resolve แล้วนับแค่รายการที่เลือก
-10. [ ] เพิ่ม styles เฉพาะแผง/ฟอร์มใหม่ใน `src/styles.css` ตาม tokens/wireframes ไม่ต่อท้าย override ทั่วแอปซ้ำ; ตรวจ 390px/desktop, focus, touch targets, live result และ reduced motion ด้วย browser
-11. [ ] เพิ่ม compatibility/roundtrip assertions ใน `tests/storage.test.ts` สำหรับ fixed v1 และไฟล์แนบเดิม/child batch; คง folder transaction/ZIP format/hash/path validation เดิมโดยไม่แก้ adapter หาก tests ไม่ชี้ว่าจำเป็น
-12. [ ] รัน focused unit/E2E ตาม Verification Evidence แล้ว full nearest gates: typecheck, unit ทั้งหมด, static build, browser เดิม+ใหม่, Thai PDF; ตรวจ serialized records ว่า claim ไม่ถูกเก็บเป็นยอดจ่าย และยกเลิก/เขียนล้มเหลวไม่รายงานสำเร็จ
-13. [ ] อัปเดต README และเอกสาร format/verification เฉพาะความหมาย annual reference และวิธีตั้งค่าสิทธิ เก็บ screenshots/reports ของงานนี้หลังได้รับอนุมัติ implement; ส่งให้ผู้ใช้ตรวจ โดยยังไม่ commit/push/deploy อัตโนมัติ
+1. [x] บันทึก baseline และเพิ่ม fixture สิทธิ fixed ใน `tests/fixed-allowances.test.ts` โดยใช้ snapshot ปัจจุบัน: ส่วนตัว/คู่สมรส/จำนวน/legacy duplicate/pending/date window; ตรวจผลเดิมกับ `tests/engine.test.ts` ก่อน structural edits
+   - สถานะ: 🧪 TESTING — baseline 118 ก่อนแก้ engine; fixture `tests/fixed-allowances.test.ts`
+2. [x] สร้าง `src/domain/fixed-allowances.ts` สำหรับ classification, compatible annual rules, count validation, contributors และ potential/included/pending projection; ให้ `src/domain/engine.ts` reuse เฉพาะ logic ที่มีอยู่แทน ID/count logic ซ้ำ; ทดสอบผลคำนวณและภาษีเดิมไม่เปลี่ยน
+   - สถานะ: 🧪 TESTING — `src/domain/fixed-allowances.ts`; engine snapshot 20 สถานการณ์ตัวเลขเท่าเดิม (เปลี่ยนเฉพาะถ้อยคำ warning ซ้ำ 2 กรณี)
+3. [x] เพิ่ม pure annual-upsert/batch preparation ใน domain helper และ `saveFixedAllowanceClaims` ใน `src/use-workspace.ts` ที่ใช้ expected workspace/year guard เดิม ตรวจทุก record ด้วย `recordSchema` ก่อน commit และคง invariant เดียวกับ `saveRecord` (เพดาน 5,000 รายการ, เพิ่ม `selectedCategories`, `assertCarrySources`); ทดสอบ stable ID, cancel, duplicate conflict, partial failure และ child+additional atomicity
+   - สถานะ: 🧪 TESTING — `applyFixedDrafts` + `saveFixedAllowanceClaims`; unit รวม atomic/duplicate/cascade
+4. [x] เพิ่ม `src/ui/fixed-allowance-editor.tsx` ใช้ Modal/file staging/preview เดิม: จำนวนและ confirmation อยู่ส่วนหลัก คำนวณสด และเอกสาร optional; เพิ่ม UI tests ใน `tests/e2e/fixed-allowances.spec.ts` สำหรับไม่มี required paid/date/title, quantity และ acknowledgement
+   - สถานะ: 🧪 TESTING — `src/ui/fixed-allowance-editor.tsx`; E2E `tests/e2e/fixed-allowances.spec.ts`
+5. [x] เปลี่ยน routing เฉพาะ entry points ใน `src/App.tsx` และ `src/ui/record-editor.tsx` ให้ known fixed เปิด composer, actual expense เปิด form เดิม; เตือนก่อนทิ้ง draft และป้องกันปิดระหว่าง submit; ทดสอบหมวด pending และการกลับไปจ่ายจริงไม่เปลี่ยนข้อมูล
+   - สถานะ: 🧪 TESTING — `App.tsx` + `record-editor.tsx` routing; เตือนก่อนทิ้ง draft (E2E)
+6. [x] เพิ่มแผง `src/ui/fixed-allowance-panel.tsx` และผูกใน `src/ui/overview.tsx`: personal readonly, known selectable annual rows, potential/included/pending count; เอาเฉพาะ fixed ออกจาก progress cards เดิม; ทดสอบ unchecked amount 0 ยังแสดงงานรอตรวจ
+   - สถานะ: 🧪 TESTING — `src/ui/fixed-allowance-panel.tsx`; ยังไม่ผู้ใช้ตรวจ
+7. [x] ปรับ `src/ui/records.tsx`, `src/ui/prepare.tsx`, `src/ui/format.ts` ให้ fixed แสดงปีสิทธิ/ยอดสิทธิ/สถานะแยกเอกสาร และ route edit/attach ไป record เดิม; ทดสอบ contributor/duplicate ไม่แสดงยอดซ้ำ
+   - สถานะ: 🧪 TESTING — records/prepare/format; ตรวจด้วย E2E และภาพ
+8. [x] ใช้ projection ร่วมใน `src/reports/annual-report.tsx` และ `src/storage/zip.ts` ส่วน searchIndex เท่านั้น เพิ่มคอลัมน์ CSV แบบไม่เปลี่ยนความหมายเดิมและระบุ fixed vs paid ใน PDF/index; เพิ่ม assertions ใน unit/report tests และ E2E ว่า fixed claim ไม่กลายเป็น 0 บาทหรือ fake payment date; ให้ `scripts/verify-pdf.mjs` รับ path/ข้อความเป็น optional argument (ค่าเริ่มต้นเดิมไม่เปลี่ยน) และให้ E2E fixed สร้าง `test-results/artifacts/fixed-allowance.pdf`
+   - สถานะ: 🧪 TESTING — annual-report/CSV/ZIP index; `verify-pdf` รับ argument; fixed PDF ตรวจข้อความอัตโนมัติไม่ผ่านเพราะ extraction (ดู docs/verification.md)
+9. [x] ทำ legacy conflict review ใน fixed editor พร้อม preview/สำรอง/explicit canonical selection; ไม่เปลี่ยนหลักฐานหรือ record อื่นโดยเงียบ ๆ; ทดสอบเก่าเปิดโดยไม่แก้ไม่เปลี่ยน bytes/IDs และ resolve แล้วนับแค่รายการที่เลือก
+   - สถานะ: 🧪 TESTING — conflict review ใน composer, backup ก่อน commit (E2E)
+10. [x] เพิ่ม styles เฉพาะแผง/ฟอร์มใหม่ใน `src/styles.css` ตาม tokens/wireframes ไม่ต่อท้าย override ทั่วแอปซ้ำ; ตรวจ 390px/desktop, focus, touch targets, live result และ reduced motion ด้วย browser
+   - สถานะ: 🧪 TESTING — CSS scoped `.fixed-*`; ภาพ 1440/390 ใน test-results/artifacts
+11. [x] เพิ่ม compatibility/roundtrip assertions ใน `tests/storage.test.ts` สำหรับ fixed v1 และไฟล์แนบเดิม/child batch; คง folder transaction/ZIP format/hash/path validation เดิมโดยไม่แก้ adapter หาก tests ไม่ชี้ว่าจำเป็น
+   - สถานะ: 🧪 TESTING — `tests/storage.test.ts` fixed v1 roundtrip 3 กรณี; adapter ไม่แก้
+12. [x] รัน focused unit/E2E ตาม Verification Evidence แล้ว full nearest gates: typecheck, unit ทั้งหมด, static build, browser เดิม+ใหม่, Thai PDF; ตรวจ serialized records ว่า claim ไม่ถูกเก็บเป็นยอดจ่าย และยกเลิก/เขียนล้มเหลวไม่รายงานสำเร็จ
+   - สถานะ: 🧪 TESTING — typecheck, npm test 151, build, test:e2e 14, verify-pdf (default ผ่าน; fixed ไม่ผ่านด้านการดึงข้อความ)
+13. [x] อัปเดต README และเอกสาร format/verification เฉพาะความหมาย annual reference และวิธีตั้งค่าสิทธิ เก็บ screenshots/reports ของงานนี้หลังได้รับอนุมัติ implement; ส่งให้ผู้ใช้ตรวจ โดยยังไม่ commit/push/deploy อัตโนมัติ
+   - สถานะ: 🧪 TESTING — README, docs/storage-format.md, docs/verification.md; ยังไม่ VERIFIED
 
 ## Touchpoints
 

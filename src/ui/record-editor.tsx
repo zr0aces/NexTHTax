@@ -6,11 +6,14 @@ import { newId, recordSchema } from "../domain/model";
 import { addAttachments } from "../storage/documents";
 import { Modal, AmountInput } from "./primitives";
 import { docLabels, eligibilityLabels } from "./format";
-export function RecordEditor({workspace,year,record,categoryId,onClose,onSave}:{workspace:Workspace;year:number;record?:TaxRecord;categoryId?:string;onClose:()=>void;onSave:(record:TaxRecord,files:Map<string,Uint8Array>,expected:Workspace,year:number)=>void}) {
+import { isFixedAllowanceId, type FixedAllowanceId } from "../domain/fixed-allowances";
+export function RecordEditor({workspace,year,record,categoryId,onClose,onSave,onFixed}:{workspace:Workspace;year:number;record?:TaxRecord;categoryId?:string;onClose:()=>void;onSave:(record:TaxRecord,files:Map<string,Uint8Array>,expected:Workspace,year:number)=>void;onFixed:(id:FixedAllowanceId)=>void}) {
  const source=useRef(workspace),submitting=useRef(false);
  const rules=workspace.years[year].rules.rules.filter(r=>r.id!=="personal"&&r.kind!=="expense");
- const [draft,setDraft]=useState<TaxRecord>(()=>record?structuredClone(record):{id:newId(),categoryId:categoryId??rules[0]?.id??"income-doc",title:"",amount:0,date:`${year-543}-${new Date().toISOString().slice(5,10)}`,eligibleAmount:null,provider:"",reference:"",note:"",documentStatus:"none",eligibility:"unchecked",checklist:[],attachments:[],facts:{}});
+ const [draft,setDraft]=useState<TaxRecord>(()=>record?structuredClone(record):{id:newId(),categoryId:categoryId??rules.find(r=>!isFixedAllowanceId(r.id)&&r.status==="verified")?.id??"income-doc",title:"",amount:0,date:`${year-543}-${new Date().toISOString().slice(5,10)}`,eligibleAmount:null,provider:"",reference:"",note:"",documentStatus:"none",eligibility:"unchecked",checklist:[],attachments:[],facts:{}});
  const [files,setFiles]=useState<File[]>([]);const [error,setError]=useState("");const [busy,setBusy]=useState(false);
+ const initialDraft=useRef(JSON.stringify(draft));
+ const edited=()=>JSON.stringify(draft)!==initialDraft.current||files.length>0;
  const rule=rules.find(r=>r.id===draft.categoryId)??rules[0];
  function patch(part:Partial<TaxRecord>){setDraft({...draft,...part});}
  function choose(list:FileList|null){if(list)setFiles(prev=>[...prev,...Array.from(list)]);}
@@ -27,7 +30,7 @@ export function RecordEditor({workspace,year,record,categoryId,onClose,onSave}:{
  }catch(err){setError(err instanceof ZodError?"ข้อมูลบางช่องไม่ถูกต้อง กรุณาตรวจจำนวนเงิน วันที่ และจำนวนไฟล์":err instanceof Error?err.message:"เพิ่มเอกสารไม่สำเร็จ");}finally{submitting.current=false;setBusy(false);}}
  return <Modal title={record?"แก้ไขรายการ / เพิ่มหลักฐาน":"เพิ่มรายการใช้เงินหรือเอกสาร"} onClose={()=>{if(!submitting.current)onClose();}} busy={busy} wide><form onSubmit={submit} className="editor-form"><fieldset disabled={busy} className="editor-fieldset">
  <p className="muted">{record?"เพิ่มไฟล์ให้รายการเดิมได้ โดยไม่สร้างยอดใช้เงินซ้ำ":"ยังไม่พร้อมแนบเอกสาร? บันทึกรายการไว้ก่อน แล้วค่อยเพิ่มภายหลังได้"}</p>
- <div className="form-grid"><label className="full">หมวด<select aria-label="หมวด" value={draft.categoryId} onChange={e=>patch({categoryId:e.target.value,checklist:[],eligibility:"unchecked",facts:{}})}>{rules.map(r=><option value={r.id} key={r.id}>{r.name}{r.status!=="verified"?" · เก็บเอกสาร / รอยืนยัน":""}</option>)}</select></label>
+ <div className="form-grid"><label className="full">หมวด<select aria-label="หมวด" value={draft.categoryId} onChange={e=>{const next=e.target.value;if(isFixedAllowanceId(next)){if(!edited()||window.confirm("สิทธิยอดคงที่ตั้งค่าในหน้าสิทธิแยกต่างหาก ถ้าเปลี่ยนตอนนี้ข้อมูลที่กรอกในรายการนี้จะถูกทิ้ง ต้องการเปลี่ยนหรือไม่?"))onFixed(next as FixedAllowanceId);return;}patch({categoryId:next,checklist:[],eligibility:"unchecked",facts:{}});}}>{rules.map(r=><option value={r.id} key={r.id}>{r.name}{isFixedAllowanceId(r.id)?" · ตั้งค่าในหน้าสิทธิ":r.status!=="verified"?" · เก็บเอกสาร / รอยืนยัน":""}</option>)}</select></label>
  <label className="full">ชื่อรายการ<input required maxLength={200} value={draft.title} onChange={e=>patch({title:e.target.value})} placeholder="เช่น เบี้ยประกันสุขภาพรายปี"/></label>
  <AmountInput label={rule.group==="family"?"ยอดจ่ายจริง (ถ้ามี)":"จำนวนเงินที่จ่าย"} value={draft.amount} onChange={v=>patch({amount:v??0})}/><label>วันที่จ่าย<input type="date" required min={`${year-543}-01-01`} max={`${year-543}-12-31`} value={draft.date} onChange={e=>patch({date:e.target.value})}/></label></div>
  <section className="drop-zone" onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();if(busy)return;choose(e.dataTransfer.files);}}><UploadCloud/><strong>ลากเอกสารมาวางที่นี่</strong><span>PDF, JPG, PNG, WebP · ไม่เกิน 20 MB ต่อไฟล์</span><label className="button secondary">เลือกหลายไฟล์<input className="sr-only" type="file" multiple accept="application/pdf,image/jpeg,image/png,image/webp" onChange={e=>{choose(e.target.files);e.target.value="";}}/></label></section>

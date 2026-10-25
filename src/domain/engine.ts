@@ -1,4 +1,5 @@
 import { newId, type RuleSet, type TaxRule, type TaxRecord, type TaxYearData } from "./model";
+import { countedChildCount, isActiveOn, isCountedFamily, maxQualifyingCount, validTaxDate } from "./fixed-allowances";
 
 export interface CategoryResult { ruleId: string; paid: number; eligible: number; allowed: number; remaining: number | null; pending: number; excess: number; }
 export interface Calculation {
@@ -8,9 +9,6 @@ export interface Calculation {
 }
 const ratio = (amount: number, bps: number) => Number(BigInt(Math.max(0, Math.floor(amount))) * BigInt(bps) / 10000n);
 const sum = (values: number[]) => values.reduce((a,b) => a+b, 0);
-const familyCounts = new Set(["child", "child-additional", "parents", "disability-care"]);
-const validDate = (date: string, year: number) => date.startsWith(`${year - 543}-`) && !Number.isNaN(Date.parse(date)) && new Date(date).toISOString().slice(0,10) === date;
-const active = (rule: TaxRule, date: string) => rule.status === "verified" && date >= rule.effectiveFrom && (rule.effectiveTo === null || date <= rule.effectiveTo);
 
 /** Satang intermediates; final PIT fraction below one baht is exempt (Decree 10/2500 s.5). */
 export function progressiveTax(net: number, rules: RuleSet): number {
@@ -30,9 +28,9 @@ export function calculate(data: TaxYearData): Calculation {
   const { profile, rules, records } = data;
   const income = profile.income;
   const warnings = [...rules.notes];
-  const personalRule = rules.rules.find(r => r.id === "personal" && r.formula === "fixed" && active(r, `${rules.taxYear - 543}-12-31`));
+  const personalRule = rules.rules.find(r => r.id === "personal" && r.formula === "fixed" && isActiveOn(r, `${rules.taxYear - 543}-12-31`));
   const personal = personalRule?.cap ?? 0;
-  const salaryRule = rules.rules.find(r => r.formula === "salary" && r.kind === "expense" && active(r, `${rules.taxYear - 543}-12-31`));
+  const salaryRule = rules.rules.find(r => r.formula === "salary" && r.kind === "expense" && isActiveOn(r, `${rules.taxYear - 543}-12-31`));
   const expense = income === null ? 0 : profile.incomeType === "salary" ? (salaryRule ? Math.min(salaryRule.cap ?? income, ratio(income, salaryRule.rateBps ?? 0)) : 0) : Math.min(income, profile.manualExpense ?? 0);
   const sharedUsed = new Map<string, number>();
   const categoryResults = new Map<string,CategoryResult>();
@@ -40,8 +38,7 @@ export function calculate(data: TaxYearData): Calculation {
   let deductions = 0;
   let specialDonations = 0;
   const base = income === null ? null : Math.max(0, income - expense - personal);
-  const countRecords = (id: string) => records.filter(r => r.categoryId === id && r.eligibility === "confirmed" && validDate(r.date, rules.taxYear));
-  const childCount = countRecords("child")[0]?.facts.qualifyingCount ?? 0;
+  const childCount = countedChildCount(records, rules.taxYear);
   const sharedRemaining = (key: string) => Math.max(0, (Object.hasOwn(rules.sharedCaps,key) ? rules.sharedCaps[key] : 0) - (sharedUsed.get(key) ?? 0));
   const useShared = (key: string, value: number) => { sharedUsed.set(key, (sharedUsed.get(key) ?? 0) + value); };
 
@@ -53,20 +50,20 @@ export function calculate(data: TaxYearData): Calculation {
       if (rule.id === "personal") { result.allowed=personal; result.eligible=personal; result.remaining=0; }
       continue;
     }
-    let validRows = rows.filter(record => record.eligibility === "confirmed" && validDate(record.date,rules.taxYear) && active(rule,record.date));
+    let validRows = rows.filter(record => record.eligibility === "confirmed" && validTaxDate(record.date,rules.taxYear) && isActiveOn(rule,record.date));
     result.pending = sum(rows.filter(record => record.eligibility !== "ineligible" && !validRows.includes(record)).map(r => r.amount));
     if (rule.status !== "verified") { result.remaining=null; result.excess=Math.max(0,result.paid-result.pending); continue; }
-    if (familyCounts.has(rule.id) || rule.id === "housing" || rule.id === "spouse") {
+    if (isCountedFamily(rule.id) || rule.id === "housing" || rule.id === "spouse") {
       if (validRows.length > 1) {
         result.pending += sum(validRows.slice(1).map(r => r.amount));
-        warnings.push(`${rule.name}: รุ่นนี้ใช้หนึ่งรายการรวมทั้งปี กรุณารวมยอด/จำนวนแล้วแก้รายการแรก ไม่รวมรายการซ้ำในการคำนวณ`);
+        warnings.push(`${rule.name}: รุ่นนี้ใช้หนึ่งรายการรวมทั้งปี รายการซ้ำไม่ถูกนับ กรุณาเปิดตรวจรายการซ้ำและเลือกรายการหลักให้เหลือหนึ่งรายการ`);
         validRows = validRows.slice(0,1);
       }
     }
     let cap = rule.cap ?? Number.MAX_SAFE_INTEGER;
-    if (familyCounts.has(rule.id)) {
+    if (isCountedFamily(rule.id)) {
       const count = validRows[0]?.facts.qualifyingCount;
-      const maxCount = rule.id === "parents" ? 4 : rule.id === "child-additional" ? childCount : 20;
+      const maxCount = maxQualifyingCount(rule.id, childCount);
       if (count === undefined || count > maxCount) {
         result.pending += sum(validRows.map(r => r.amount)); result.remaining=null;
         if (validRows.length) warnings.push(`${rule.name}: ต้องระบุจำนวนผู้เข้าเกณฑ์และตรวจสิทธิที่เกี่ยวข้องก่อนคำนวณ`);

@@ -63,3 +63,16 @@ E2E สร้างหลักฐานใน `test-results/artifacts/` (ไม
 25 ตุลาคม 2569: **118 tests ผ่าน** (engine 68 + storage 50), **Chromium 7/7 ผ่าน** (10.0 วินาที), TypeScript 7.0.2 และ static build (Vite 8.3.5) ผ่าน ชุดกฎ **2569.2** offline precache 224 assets PDF จริง 4 หน้าอ่านข้อความไทยกลับและ render ผ่าน `npm audit`: 0 vulnerabilities รายละเอียด machine-readable: `docs/harness/verification.json`
 
 บันทึกแก้ระหว่างตรวจ: ปรับปรุงแพ็กเกจสู่รุ่นล่าสุด (Vite 8, TypeScript 7, Lucide-React 1.x, @types/node 26, React 19.3); รองรับ Playwright environment fallback อัตโนมัติ; ป้องกัน Modal InvalidStateError ใน React StrictMode; เพิ่ม fallback ความปลอดภัยสำหรับหมวดหมู่ใน RecordEditor เมื่อเปิดรายการที่มีหมวดไม่ตรงกับตัวกรอง
+
+## สิทธิยอดคงที่ — ผลตรวจรอบ EXECUTE (สถานะ: TESTING, ยังไม่ VERIFIED)
+
+ผู้ใช้ยังไม่ได้ยืนยันหน้าตาที่เปลี่ยน ตามแผน `process/general-plans/active/fixed-allowance-ui-ux_PLAN_25-10-26.md` ผลด้านล่างคือผลอัตโนมัติและการดูภาพ 1440px/390px ที่สร้างในรอบนี้
+
+- `npm run typecheck`: ผ่าน
+- `npm test` (vitest): 151 ผ่าน / 0 ไม่ผ่าน (engine 68 · storage 53 · fixed-allowances 30)
+- `npm run build`: ผ่าน
+- `npm run test:e2e`: 14 ผ่าน / 0 ไม่ผ่าน (app 7 เดิม + fixed-allowances 7 ใหม่) มีภาพ `test-results/artifacts/fixed-allowance-*.png` และ `fixed-allowance.pdf`
+- `node scripts/verify-pdf.mjs`: ผ่าน 4 หน้า (ค่าเริ่มต้นเดิม)
+- `node scripts/verify-pdf.mjs test-results/artifacts/fixed-allowance.pdf สิทธิประจำปี บุตร`: **ไม่ผ่าน** ตัวตรวจ pdfjs ดึงข้อความไทยบางตัวไม่ครบ (เช่น สระ “ี” ถูกแทนด้วย `\x00`) ทั้งที่ตรวจภาพหน้า 2 ด้วยตาแล้วว่าข้อความ “สิทธิประจำปี ไม่ใช่รายจ่าย” แสดงถูกต้อง รูปแบบเดียวกันเกิดกับหัวข้อเดิม “ปี 2569” ในไฟล์ตัวอย่างด้วย ยังไม่ได้แก้ตัวตรวจ
+- ยังไม่ได้ทดสอบบน Safari/Firefox, ยังไม่ได้ทดสอบ screen reader จริง, และยังไม่ได้ตรวจกับแฟ้มจริงของผู้ใช้
+

@@ -1,5 +1,8 @@
 import { zipSync, inflateSync } from "fflate";
 import type { Workspace } from "../domain/model";
+import { calculate } from "../domain/engine";
+import { classifyFixedRecords, isFixedAllowanceId, potentialFor } from "../domain/fixed-allowances";
+import { money, recordStateLabels } from "../ui/format";
 import { decoder, encoder, MAX_TOTAL, serializedFiles, validateWorkspace, workspaceFromFiles } from "./validation";
 const MAX_ENTRIES = 1100;
 const MAX_ARCHIVE = MAX_TOTAL + 20 * 1024 * 1024;
@@ -61,7 +64,16 @@ export async function importZip(bytes:Uint8Array):Promise<Workspace> {
  return workspaceFromFiles(files);
 }
 export function searchIndex(workspace:Workspace):string {
- const rows=workspace.manifest.years.flatMap(year => workspace.years[String(year)].records.map(r=>`<tr><td>${year}</td><td>${escapeHtml(r.title)}</td><td>${(r.amount/100).toFixed(2)}</td><td>${escapeHtml(r.date)}</td><td>${r.attachments.map(a=>`<a href="${a.path}">${escapeHtml(a.originalName)}</a>`).join("<br>")}</td></tr>`));
+ const rows=workspace.manifest.years.flatMap(year => {
+  const data=workspace.years[String(year)], states=classifyFixedRecords(data), rules=new Map(data.rules.rules.map(rule=>[rule.id,rule]));
+  return data.records.map(r=>{
+   const fixed=isFixedAllowanceId(r.categoryId), state=states.get(r.id);
+   const potential=fixed?potentialFor(r,rules.get(r.categoryId),state):null;
+   const amount=fixed?`สิทธิประจำปี ไม่ใช่รายจ่าย · ยอดตามจำนวนที่ระบุ ${potential===null?"โปรดระบุจำนวน":money(potential)+" บาท"} · ${recordStateLabels[state??"rule-pending"]}`:(r.amount/100).toFixed(2);
+   const date=fixed?`สิทธิปี ${year} (ไม่ใช่วันที่จ่าย)`:escapeHtml(r.date);
+   return `<tr><td>${year}</td><td>${escapeHtml(r.title)}</td><td>${amount}</td><td>${date}</td><td>${r.attachments.map(a=>`<a href="${a.path}">${escapeHtml(a.originalName)}</a>`).join("<br>")}</td></tr>`;
+  });
+ });
  return `<!doctype html><html lang="th"><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src &#39;none&#39;; style-src &#39;unsafe-inline&#39;; base-uri &#39;none&#39;; form-action &#39;none&#39;"><title>ดัชนีแฟ้มภาษี</title><style>body{font:16px sans-serif;margin:32px}td,th{padding:12px;border:1px solid #ccc}table{border-collapse:collapse}</style><h1>${escapeHtml(workspace.manifest.name)}</h1><p>เอกสารช่วยเตรียมยื่นภาษี ไม่ใช่แบบยื่นทางการ ค้นหาชื่อรายการด้วย Ctrl+F</p><table><thead><tr><th>ปี</th><th>รายการ</th><th>จ่ายจริง (บาท)</th><th>วันที่</th><th>เอกสาร</th></tr></thead><tbody>${rows.join("")}</tbody></table></html>`;
 }
 export async function exportZip(input:Workspace):Promise<Uint8Array> {

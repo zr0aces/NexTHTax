@@ -4,6 +4,8 @@ import { createWorkspace, exportZip, importZip, FolderSession, restoreBackup, ad
 import { inspectZip } from "../src/storage/zip";
 import { encodeJson } from "../src/storage/validation";
 import type { RuleSet, TaxRecord, Workspace } from "../src/domain/model";
+import { getRules } from "../src/domain/rules";
+import { applyFixedDrafts, type FixedDraft } from "../src/domain/fixed-allowances";
 const rules:RuleSet={schemaVersion:1,taxYear:2569,version:"test",status:"pending",sharedCaps:{},brackets:[],notes:[],rules:[{id:"rmf",taxYear:2569,name:"RMF",description:"test",group:"retirement",kind:"deduction",status:"pending",formula:"paid",cap:null,rateBps:null,incomeBase:"income",sharedCap:null,multiplier:1,order:1,effectiveFrom:"2026-01-01",effectiveTo:null,conditions:[],documents:["ใบรับรอง"],sources:[],reviewedAt:"2026-10-25",version:"test"}]};
 const pdf = () => new File(["%PDF-1.4\nSample safe bytes"],"ใบรับรอง.pdf",{type:"application/pdf"});
 function record(attachments:TaxRecord["attachments"]):TaxRecord{return {id:"record-1",categoryId:"rmf",title:"RMF",amount:500000,date:"2026-05-01",eligibleAmount:null,provider:"",reference:"",note:"",documentStatus:"complete",eligibility:"unchecked",checklist:["ใบรับรอง"],attachments,facts:{}};}
@@ -82,4 +84,41 @@ describe("continuing entitlement source consistency",()=>{
  it("preserves one consistent original transfer history across years",async()=>{const w=await continuingSample();expect(()=>assertCarrySources(w)).not.toThrow();const back=await importZip(await exportZip(w));expect(back.years["2570"].records[0].facts).toEqual(w.years["2569"].records[0].facts);});
  it.each(["carryTransfer","carryFirstYearUsed"] as const)("rejects conflicting proven %s across years before commit and export",async field=>{const w=await continuingSample();w.years["2570"].records[0].facts[field]!+=100;expect(()=>assertCarrySources(w)).toThrow("ไม่ตรงกัน");await expect(exportZip(w)).rejects.toThrow("ไม่ตรงกัน");});
  it("leaves unconfirmed source figures pending rather than treating them as proof",async()=>{const w=await continuingSample();w.years["2570"].records[0].facts.carryTransfer=40_000_000;w.years["2570"].records[0].facts.carryProofConfirmed=false;expect(()=>assertCarrySources(w)).not.toThrow();});
+});
+
+describe("fixed allowance v1 storage",()=>{
+ const fictionalPdf=()=>new File(["%PDF-1.4\nfictional fixed evidence"],"หลักฐานสมมติ.pdf",{type:"application/pdf"});
+ async function fixedWorkspace(){
+  const w=createWorkspace("แฟ้มสิทธิสมมติ",getRules(2569));
+  const [evidence]=await addAttachments(w,2569,"family",[fictionalPdf()]);
+  const draft=(categoryId:FixedDraft["categoryId"],qualifyingCount:number|null,extra:Partial<FixedDraft>={}):FixedDraft=>({categoryId,qualifyingCount,confirmed:true,checklist:[],newAttachments:[],canonicalId:null,...extra});
+  w.years["2569"]=applyFixedDrafts(w.years["2569"],[draft("child",2,{newAttachments:[evidence]}),draft("child-additional",1)]);
+  return w;
+ }
+ it("roundtrips child and additional claims as annual v1 records with no payment amount or payment date",async()=>{
+  const w=await fixedWorkspace();
+  const back=await importZip(await exportZip(w));
+  expect(back.years).toEqual(w.years);
+  expect(back.files).toEqual(w.files);
+  const records=back.years["2569"].records;
+  expect(records).toHaveLength(2);
+  expect(records.every(r=>r.amount===0&&r.eligibleAmount===null&&r.date==="2026-12-31")).toBe(true);
+  expect(records.find(r=>r.categoryId==="child")!.attachments).toHaveLength(1);
+  expect(records.find(r=>r.categoryId==="child")!.facts.qualifyingCount).toBe(2);
+ });
+ it("keeps stored paid amounts and dates of legacy records untouched after saving a claim",async()=>{
+  const w=createWorkspace("แฟ้มเดิม",getRules(2569));
+  const legacy:TaxRecord={id:"legacy-parents",categoryId:"parents",title:"ค่าอุปการะเดิม (สมมติ)",amount:50000,date:"2026-03-15",eligibleAmount:null,provider:"",reference:"",note:"",documentStatus:"none",eligibility:"unchecked",checklist:[],attachments:[],facts:{}};
+  w.years["2569"].records=[legacy];
+  w.years["2569"]=applyFixedDrafts(w.years["2569"],[{categoryId:"parents",qualifyingCount:1,confirmed:true,checklist:[],newAttachments:[],canonicalId:"legacy-parents"}]);
+  const back=await importZip(await exportZip(w));
+  expect(back.years["2569"].records[0]).toMatchObject({id:"legacy-parents",amount:50000,date:"2026-03-15",facts:{qualifyingCount:1},eligibility:"confirmed"});
+ });
+ it("rejects a batch whose second claim is invalid without changing the candidate source",async()=>{
+  const w=await fixedWorkspace();
+  const before=JSON.stringify(w.years);
+  expect(()=>applyFixedDrafts(w.years["2569"],[{categoryId:"child",qualifyingCount:2,confirmed:true,checklist:[],newAttachments:[],canonicalId:w.years["2569"].records[0].id},{categoryId:"child-additional",qualifyingCount:9,confirmed:true,checklist:[],newAttachments:[],canonicalId:null}])).toThrow();
+  expect(JSON.stringify(w.years)).toBe(before);
+  await expect(exportZip(w)).resolves.toBeInstanceOf(Uint8Array);
+ });
 });
