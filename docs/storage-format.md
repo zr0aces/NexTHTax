@@ -1,0 +1,49 @@
+# รูปแบบแฟ้มและขอบเขตความปลอดภัย
+
+รูปแบบรุ่น 1 ใช้ JSON UTF-8 จำนวนเงินเป็นสตางค์จำนวนเต็ม บันทึก stable IDs ที่ไม่อิงชื่อหรือเลขบัตร
+
+```
+TaxFolder/
+  manifest.json                 # schemaVersion, id, revision, years
+  .tax-backup.zip                # ฉบับก่อนบันทึกสำเร็จล่าสุด
+  .tax-pending.json              # มีเฉพาะเมื่อการบันทึกยังไม่เสร็จ
+  years/2569/
+    profile.json                # รายได้/ตัวเลือก ไม่เก็บ identity ไม่จำเป็น
+    records.json                # รายการและ metadata เอกสาร
+    rules-snapshot.json         # ฐานคำนวณปีนี้
+    documents/{insurance,retirement,donations,housing,family,other}/
+      <stable-id>.pdf            # หรือ jpg/png/webp
+    exports/                    # โฟลเดอร์เตรียมไว้ ผู้ใช้เลือกเก็บรายงานได้เอง
+```
+
+ชื่อเดิมอยู่ใน metadata ใช้ชื่อจัดเก็บ UUID ป้องกันซ้ำ ไม่มี absolute path ของเครื่อง เอกสารจริงไม่ฝังใน JSON หมวดลงทุน/รายได้/กำหนดเองจัดไฟล์ใน `other` รายงานดาวน์โหลดผ่าน browser ไม่อ้างว่าเขียนลง `exports` อัตโนมัติ
+
+## บันทึกโฟลเดอร์
+
+1. รับสิทธิเฉพาะโฟลเดอร์ที่เลือก ต้องว่างถ้าสร้างใหม่
+2. ใช้ Web Lock ตาม workspace ID (การสร้างมี global creation lock) อ่านและเขียนร่วมกันระหว่างแท็บ
+3. ก่อนบันทึกเปรียบเทียบ hash ของข้อมูลและเอกสารที่เคยอ่านกับบนดิสก์ หากเปลี่ยนไม่เขียนทับ
+4. เขียน `.tax-backup.zip` ของข้อมูลที่ commit ครั้งก่อน ตรวจ external changes อีกครั้ง
+5. เขียน pending marker พร้อม hash สำรอง แล้วเขียนเอกสาร/ข้อมูล/manifest
+6. อ่านกลับตรวจตรงกับ bytes ที่ตั้งใจเขียนก่อนลบ marker และรายงานสำเร็จ
+7. ถ้าล้มเหลว ไม่เพิ่ม revision ที่ UI ถือว่าสำเร็จ มี marker แล้วเปิดปกติไม่ได้จนกู้คืน
+
+การเปิดแฟ้มค้น ID จาก manifest ก่อน แล้วอ่าน snapshot ทั้งชุดภายใต้ lock เดียวกับผู้เขียน ตรวจ marker ก่อน/หลัง และยืนยันว่า ID ไม่เปลี่ยน ไม่รับ mixed snapshot ของโปรแกรมเอง
+
+File System Access ไม่ให้ multi-file atomic transaction กับทุก OS client การสำรอง/marker เป็น recovery protocol ไม่ใช่การรับรอง atomicity ต่อโปรแกรมภายนอก หยุดแก้และซิงก์ไฟล์เดียวกันระหว่างบันทึก
+
+## เปิด ZIP
+
+- ตรวจ EOCD/central directory/local entries และยอดรวมก่อนคลาย ไม่รองรับ ZIP64/หลายส่วน/เข้ารหัส
+- ใช้เฉพาะ compressed byte ranges ที่ผ่านตรวจ ไม่ให้ parser ZIP อีกตัวตีความรายการใหม่
+- raw inflate ลงพื้นที่ขนาดจำกัด ตรวจผลลัพธ์เท่าขนาดที่ประกาศและ CRC
+- ตรวจ schema, ปี, stable IDs, rule semantics, paths, magic/MIME/size/hash และ reference
+- เอกสารหายสร้าง warning/ลดสถานะ; เอกสารถูกเปลี่ยนหรือไฟล์สำคัญเสียปฏิเสธ ไม่แก้ต้นฉบับนำเข้า
+- ข้อมูล proof ต้นทาง ESGX ที่ยืนยันแล้วต้องตรงกันทุกปี แหล่งเดียวกันในปีคิดได้ครั้งเดียว
+- metadata ที่ไม่อยู่ในรายชื่อปีไม่ถูกละทิ้งเงียบ ๆ รุ่นไม่รู้จักถูกปฏิเสธ
+
+ส่งออกมี `index.html` escaped และไม่มี script พร้อม `README.txt` ค้นหาด้วย Ctrl+F เอกสารไม่ได้ถูกเรียกจาก server ไม่ทำ OCR
+
+## เปลี่ยนกฎ/รุ่นข้อมูล
+
+รุ่นแรกมี schema เดียว ไม่ migrate ใด ๆ โดยอัตโนมัติ เปลี่ยนฐานกฎต้องแสดง diff สำรองและยืนยัน รายการที่เงื่อนไขเปลี่ยนกลับไปตรวจใหม่ ไม่ลบยอดหรือหลักฐาน ชุดกฎไม่ใช่ executable code และ `verified` ในไฟล์นำเข้าคือคำอ้างของผู้ออก ไม่ใช่ signature/การรับรองจากแอป

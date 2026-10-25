@@ -1,0 +1,1 @@
+{"date":"2026-10-25","risk":"high","areas":["local financial data writes","ZIP/document trust boundary","tax calculations"],"scope":"static frontend only; no user-data backend","requiredProof":["unit/storage regressions","browser workflows","Thai PDF rendering","explicit unverified-rule exclusion"],"externalStateChanged":false,"committed":false}

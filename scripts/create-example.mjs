@@ -1,0 +1,15 @@
+import {mkdir,writeFile,readFile} from "node:fs/promises";
+import {createHash} from "node:crypto";
+import {zipSync} from "fflate";
+// A tiny real PDF; deliberately fictional and no personal data.
+let pdf="%PDF-1.4\n";const offsets=[0];
+const content="BT /F1 22 Tf 55 740 Td (FICTIONAL DOCUMENT) Tj 0 -36 Td /F1 12 Tf (Example only - NOT FOR TAX FILING) Tj 0 -30 Td (NexTHTax sample 2026) Tj ET";
+const objects=["<< /Type /Catalog /Pages 2 0 R >>","<< /Type /Pages /Kids [3 0 R] /Count 1 >>","<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>","<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",`<< /Length ${content.length} >>\nstream\n${content}\nendstream`];
+objects.forEach((obj,i)=>{offsets.push(Buffer.byteLength(pdf));pdf+=`${i+1} 0 obj\n${obj}\nendobj\n`;});const xref=Buffer.byteLength(pdf);pdf+=`xref\n0 6\n0000000000 65535 f \n${offsets.slice(1).map(n=>String(n).padStart(10,"0")+" 00000 n \n").join("")}trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
+const document=Buffer.from(pdf),path="years/2569/documents/insurance/example-receipt.pdf";
+const attachment={id:"example-receipt",path,originalName:"หลักฐานสมมติ-ไม่ใช่ใบรับรองจริง.pdf",mime:"application/pdf",size:document.length,hash:createHash("sha256").update(document).digest("hex")};
+const rules=JSON.parse(await readFile("public/rules/2569.json","utf8"));const record={id:"example-health",categoryId:"health",title:"เบี้ยประกันสุขภาพ (ข้อมูลสมมติ)",amount:1800000,date:"2026-10-01",eligibleAmount:null,provider:"บริษัทสมมติ",reference:"EXAMPLE-ONLY",note:"ตัวอย่างสำหรับเรียนรู้ ไม่ใช่ใบรับรองภาษีจริง",documentStatus:"partial",eligibility:"unchecked",checklist:[],attachments:[attachment],facts:{}};
+const data={"manifest.json":{schemaVersion:1,id:"fictional-example-only",name:"ตัวอย่างสมมติ — ไม่ใช่แฟ้มจริง",revision:0,createdAt:"2026-10-25T00:00:00Z",updatedAt:"2026-10-25T00:00:00Z",years:[2569]},"years/2569/profile.json":{income:90000000,incomeType:"salary",manualExpense:null,withholding:null,selectedCategories:["life","health","rmf","thai-esg","housing"]},"years/2569/records.json":[record],"years/2569/rules-snapshot.json":rules};
+const files=Object.fromEntries(Object.entries(data).map(([path,value])=>[path,Buffer.from(JSON.stringify(value,null,2))]));files[path]=document;files["README.txt"]=Buffer.from("ข้อมูลสมมติสำหรับทดลองเท่านั้น ไม่ใช่เอกสารสำหรับยื่นภาษี\nเปิด ZIP ด้วยแอป หรือเลือกโฟลเดอร์ FictionalTaxFolder");files["index.html"]=Buffer.from("<!doctype html><meta charset=utf-8><title>ดัชนีแฟ้มสมมติ</title><h1>ตัวอย่างสมมติ — ไม่ใช่แฟ้มจริง</h1><p>ปี 2569 · ประกันสุขภาพ 18,000 บาท</p><a href='"+path+"'>หลักฐานสมมติ PDF</a>");
+for(const [path,bytes] of Object.entries(files)){const target="examples/FictionalTaxFolder/"+path;await mkdir(target.slice(0,target.lastIndexOf("/")),{recursive:true});await writeFile(target,bytes);}
+await writeFile("examples/fictional-tax-2569.zip",zipSync(files,{level:1}));console.log("Wrote fictional example folder + ZIP (no real personal data).");

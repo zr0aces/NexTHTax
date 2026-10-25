@@ -1,0 +1,13 @@
+{
+  "income": 90000000,
+  "incomeType": "salary",
+  "manualExpense": null,
+  "withholding": null,
+  "selectedCategories": [
+    "life",
+    "health",
+    "rmf",
+    "thai-esg",
+    "housing"
+  ]
+}

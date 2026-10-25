@@ -1,0 +1,1371 @@
+{
+  "schemaVersion": 1,
+  "taxYear": 2569,
+  "version": "2569.2-reviewed-2026-10-25",
+  "status": "partial",
+  "rules": [
+    {
+      "id": "salary-expense",
+      "taxYear": 2569,
+      "name": "ค่าใช้จ่ายเงินเดือน",
+      "description": "คำนวณเฉพาะรายการที่ผู้ใช้ยืนยันว่าเข้าเงื่อนไข ไม่ใช่การรับรองจากกรมสรรพากร",
+      "group": "income",
+      "kind": "expense",
+      "status": "verified",
+      "formula": "salary",
+      "cap": 10000000,
+      "rateBps": 5000,
+      "incomeBase": "เงินได้พึงประเมินที่ต้องเสียภาษีก่อนหักค่าใช้จ่ายและค่าลดหย่อน",
+      "sharedCap": null,
+      "multiplier": 1,
+      "order": 1,
+      "effectiveFrom": "2026-01-01",
+      "effectiveTo": null,
+      "conditions": [
+        "สำหรับเงินได้ตามมาตรา 40(1) และ 40(2) รวมกัน",
+        "โมเดลนี้ใช้เมื่อเลือกเงินเดือนเป็นหลักเท่านั้น"
+      ],
+      "documents": [
+        "หนังสือรับรอง 50 ทวิ"
+      ],
+      "sources": [
+        "https://www.rd.go.th/59668.html"
+      ],
+      "reviewedAt": "2026-10-25",
+      "version": "2569.2"
+    },
+    {
+      "id": "personal",
+      "taxYear": 2569,
+      "name": "ค่าลดหย่อนส่วนตัว",
+      "description": "คำนวณเฉพาะรายการที่ผู้ใช้ยืนยันว่าเข้าเงื่อนไข ไม่ใช่การรับรองจากกรมสรรพากร",
+      "group": "family",
+      "kind": "deduction",
+      "status": "verified",
+      "formula": "fixed",
+      "cap": 6000000,
+      "rateBps": null,
+      "incomeBase": "ไม่ใช้สัดส่วนรายได้",
+      "sharedCap": null,
+      "multiplier": 1,
+      "order": 2,
+      "effectiveFrom": "2026-01-01",
+      "effectiveTo": null,
+      "conditions": [
+        "ผู้มีเงินได้หนึ่งสิทธิต่อปี"
+      ],
+      "documents": [
+        "หลักฐานการจ่ายและหนังสือรับรองสิทธิ"
+      ],
+      "sources": [
+        "https://www.rd.go.th/59668.html"
+      ],
+      "reviewedAt": "2026-10-25",
+      "version": "2569.2"
+    },
+    {
+      "id": "spouse",
+      "taxYear": 2569,
+      "name": "คู่สมรสไม่มีเงินได้",
+      "description": "จัดเก็บเอกสารได้ แต่ยังไม่รวมในยอดคำนวณจนกว่าจะตรวจสอบกฎหมายและเงื่อนไขปี 2569 ครบ",
+      "group": "family",
+      "kind": "deduction",
+      "status": "verified",
+      "formula": "paid",
+      "cap": 6000000,
+      "rateBps": null,
+      "incomeBase": "ไม่ใช้สัดส่วนรายได้",
+      "sharedCap": null,
+      "multiplier": 1,
+      "order": 40,
+      "effectiveFrom": "2026-01-01",
+      "effectiveTo": null,
+      "conditions": [
+        "คู่สมรสจดทะเบียนตามกฎหมายและไม่มีเงินได้ในปีภาษี",
+        "ยืนยันหนึ่งสิทธิต่อปี ไม่ใช่คู่สมรสที่มีรายได้แยกยื่น"
+      ],
+      "documents": [
+        "หลักฐานการจ่ายและหนังสือรับรองสิทธิ"
+      ],
+      "sources": [
+        "https://www.rd.go.th/5937.html"
+      ],
+      "reviewedAt": "2026-10-25",
+      "version": "2569.2"
+    },
+    {
+      "id": "child",
+      "taxYear": 2569,
+      "name": "บุตรที่เข้าเงื่อนไข",
+      "description": "สิทธิเป็นรายบุคคล: ใช้จำนวนผู้เข้าเกณฑ์ที่ผู้ใช้ตรวจยืนยัน ไม่ใช่จำนวนเงินที่จ่ายจริง; รุ่นนี้ใช้หนึ่งรายการจำนวนรวมต่อหมวด",
+      "group": "family",
+      "kind": "deduction",
+      "status": "verified",
+      "formula": "paid",
+      "cap": 3000000,
+      "rateBps": null,
+      "incomeBase": "ไม่ใช้สัดส่วนรายได้",
+      "sharedCap": null,
+      "multiplier": 1,
+      "order": 40,
+      "effectiveFrom": "2026-01-01",
+      "effectiveTo": null,
+      "conditions": [
+        "นับเฉพาะบุตรโดยชอบด้วยกฎหมายที่เข้าเกณฑ์ ไม่รวมบุตรบุญธรรมในเครื่องมือรุ่นนี้",
+        "ผู้เยาว์ หรืออายุไม่เกิน 25 ปีศึกษาอุดมศึกษา หรือศาลสั่งไร้/เสมือนไร้ความสามารถ ตามเงื่อนไข",
+        "มีเงินได้ไม่ถึง 30,000 บาท (ไม่นับเงินได้ยกเว้นที่กฎหมายกำหนด)",
+        "กรอกจำนวนบุตรที่เข้าเงื่อนไขเพียงรายการเดียวต่อหมวด แล้วผู้ใช้ยืนยัน"
+      ],
+      "documents": [
+        "หลักฐานการจ่ายและหนังสือรับรองสิทธิ"
+      ],
+      "sources": [
+        "https://www.rd.go.th/5937.html"
+      ],
+      "reviewedAt": "2026-10-25",
+      "version": "2569.2"
+    },
+    {
+      "id": "child-additional",
+      "taxYear": 2569,
+      "name": "บุตรคนที่ 2 เป็นต้นไป เกิดตั้งแต่ 2561",
+      "description": "สิทธิเป็นรายบุคคล: ใช้จำนวนผู้เข้าเกณฑ์ที่ผู้ใช้ตรวจยืนยัน ไม่ใช่จำนวนเงินที่จ่ายจริง; รุ่นนี้ใช้หนึ่งรายการจำนวนรวมต่อหมวด",
+      "group": "family",
+      "kind": "deduction",
+      "status": "verified",
+      "formula": "paid",
+      "cap": 3000000,
+      "rateBps": null,
+      "incomeBase": "ไม่ใช้สัดส่วนรายได้",
+      "sharedCap": null,
+      "multiplier": 1,
+      "order": 40,
+      "effectiveFrom": "2026-01-01",
+      "effectiveTo": null,
+      "conditions": [
+        "เฉพาะบุตรโดยชอบด้วยกฎหมายคนที่ 2 เป็นต้นไปซึ่งเกิดตั้งแต่ พ.ศ.2561",
+        "นับลำดับบุตรทั้งหมดรวมผู้เสียชีวิต ไม่ใช่ลำดับเฉพาะบุตรที่ยังลดหย่อนได้",
+        "ต้องมีบันทึกจำนวนบุตรหลักในปีเดียวกัน ไม่เกินจำนวนที่เข้าเงื่อนไข"
+      ],
+      "documents": [
+        "หลักฐานการจ่ายและหนังสือรับรองสิทธิ"
+      ],
+      "sources": [
+        "https://www.rd.go.th/5937.html"
+      ],
+      "reviewedAt": "2026-10-25",
+      "version": "2569.2"
+    },
+    {
+      "id": "parents",
+      "taxYear": 2569,
+      "name": "อุปการะบิดามารดา",
+      "description": "สิทธิเป็นรายบุคคล: ใช้จำนวนผู้เข้าเกณฑ์ที่ผู้ใช้ตรวจยืนยัน ไม่ใช่จำนวนเงินที่จ่ายจริง; รุ่นนี้ใช้หนึ่งรายการจำนวนรวมต่อหมวด",
+      "group": "family",
+      "kind": "deduction",
+      "status": "verified",
+      "formula": "paid",
+      "cap": 3000000,
+      "rateBps": null,
+      "incomeBase": "ไม่ใช้สัดส่วนรายได้",
+      "sharedCap": null,
+      "multiplier": 1,
+      "order": 40,
+      "effectiveFrom": "2026-01-01",
+      "effectiveTo": null,
+      "conditions": [
+        "บิดามารดาอายุอย่างน้อย 60 ปีและเงินได้ไม่เกิน 30,000 บาท",
+        "ผู้ใช้เป็นบุตรโดยชอบด้วยกฎหมายและมีหนังสือ ล.ย.03",
+        "บิดามารดาคู่สมรสใช้ได้เมื่อคู่สมรสไม่มีเงินได้ตามเงื่อนไข",
+        "บิดามารดาคนเดียวกันมีบุตรใช้สิทธิได้เพียงคนเดียว ตรวจการแบ่งสิทธิกับพี่น้องก่อนยืนยัน"
+      ],
+      "documents": [
+        "หลักฐานการจ่ายและหนังสือรับรองสิทธิ"
+      ],
+      "sources": [
+        "https://www.rd.go.th/41745.html"
+      ],
+      "reviewedAt": "2026-10-25",
+      "version": "2569.2"
+    },
+    {
+      "id": "disability-care",
+      "taxYear": 2569,
+      "name": "อุปการะคนพิการหรือทุพพลภาพ",
+      "description": "สิทธิเป็นรายบุคคล: ใช้จำนวนผู้เข้าเกณฑ์ที่ผู้ใช้ตรวจยืนยัน ไม่ใช่จำนวนเงินที่จ่ายจริง; รุ่นนี้ใช้หนึ่งรายการจำนวนรวมต่อหมวด",
+      "group": "family",
+      "kind": "deduction",
+      "status": "verified",
+      "formula": "paid",
+      "cap": 6000000,
+      "rateBps": null,
+      "incomeBase": "ไม่ใช้สัดส่วนรายได้",
+      "sharedCap": null,
+      "multiplier": 1,
+      "order": 40,
+      "effectiveFrom": "2026-01-01",
+      "effectiveTo": null,
+      "conditions": [
+        "ต้องมีหลักฐานผู้พิการหรือแพทย์รับรองทุพพลภาพตามกฎหมายและเข้าเกณฑ์เงินได้",
+        "บุคคลในครอบครัวตามที่กฎหมายกำหนด และบุคคลอื่นไม่เกิน 1 คน",
+        "ไม่ซ้ำกับผู้อุปการะรายอื่น ต้องตรวจชื่อผู้ดูแลและหลักฐานก่อนยืนยัน"
+      ],
+      "documents": [
+        "หลักฐานการจ่ายและหนังสือรับรองสิทธิ"
+      ],
+      "sources": [
+        "https://www.rd.go.th/60057.html"
+      ],
+      "reviewedAt": "2026-10-25",
+      "version": "2569.2"
+    },
+    {
+      "id": "maternity",
+      "taxYear": 2569,
+      "name": "ฝากครรภ์และคลอดบุตร",
+      "description": "จัดเก็บเอกสารได้ แต่ยังไม่รวมในยอดคำนวณจนกว่าจะตรวจสอบกฎหมายและเงื่อนไขปี 2569 ครบ",
+      "group": "family",
+      "kind": "deduction",
+      "status": "pending",
+      "formula": "paid",
+      "cap": null,
+      "rateBps": null,
+      "incomeBase": "ไม่ใช้สัดส่วนรายได้",
+      "sharedCap": null,
+      "multiplier": 1,
+      "order": 40,
+      "effectiveFrom": "2026-01-01",
+      "effectiveTo": null,
+      "conditions": [
+        "ตรวจวงเงินต่อครรภ์ การเบิกคืน และการแบ่งสิทธิคู่สมรส"
+      ],
+      "documents": [
+        "หลักฐานการจ่ายและหนังสือรับรองสิทธิ"
+      ],
+      "sources": [
+        "https://www.rd.go.th/62777.html"
+      ],
+      "reviewedAt": "2026-10-25",
+      "version": "2569.2"
+    },
+    {
+      "id": "age-exemption",
+      "taxYear": 2569,
+      "name": "ยกเว้นเงินได้ผู้มีอายุ 65 ปีหรือคนพิการ",
+      "description": "จัดเก็บเอกสารได้ แต่ยังไม่รวมในยอดคำนวณจนกว่าจะตรวจสอบกฎหมายและเงื่อนไขปี 2569 ครบ",
+      "group": "family",
+      "kind": "exemption",
+      "status": "pending",
+      "formula": "paid",
+      "cap": null,
+      "rateBps": null,
+      "incomeBase": "ไม่ใช้สัดส่วนรายได้",
+      "sharedCap": null,
+      "multiplier": 1,
+      "order": 40,
+      "effectiveFrom": "2026-01-01",
+      "effectiveTo": null,
+      "conditions": [
+        "แยกจากค่าลดหย่อนส่วนตัว",
+        "ต้องตรวจอายุ/ความพิการ ถิ่นที่อยู่และการจัดสรรประเภทเงินได้ ไม่รวมในโมเดลเงินเดือนรุ่นนี้"
+      ],
+      "documents": [
+        "หลักฐานการจ่ายและหนังสือรับรองสิทธิ"
+      ],
+      "sources": [
+        "https://www.rd.go.th/62777.html"
+      ],
+      "reviewedAt": "2026-10-25",
+      "version": "2569.2"
+    },
+    {
+      "id": "life",
+      "taxYear": 2569,
+      "name": "ประกันชีวิต",
+      "description": "ยอดสิทธิรวม: ค่าลดหย่อน 10,000 บาทแรก และยกเว้นเพิ่มเติมไม่เกิน 90,000 บาท แสดงรวมเพื่อประมาณ ไม่ใช่ช่องกรอกแบบยื่น",
+      "group": "insurance",
+      "kind": "deduction",
+      "status": "verified",
+      "formula": "paid",
+      "cap": 10000000,
+      "rateBps": null,
+      "incomeBase": "ไม่ใช้สัดส่วนรายได้",
+      "sharedCap": "life-health",
+      "multiplier": 1,
+      "order": 20,
+      "effectiveFrom": "2026-01-01",
+      "effectiveTo": null,
+      "conditions": [
+        "ระยะเวลาประกันตั้งแต่ 10 ปีและเข้าเงื่อนไขกฎหมาย",
+        "บริษัทประกันในประเทศไทยและตรวจเกณฑ์เงินคืน",
+        "ใช้ยอดเบี้ยส่วนที่หนังสือรับรองระบุ ไม่รวมความคุ้มครองเพิ่มเติมที่ใช้สิทธิไม่ได้"
+      ],
+      "documents": [
+        "หนังสือรับรองเบี้ยประกันชีวิต",
+        "หลักฐานชำระเบี้ย"
+      ],
+      "sources": [
+        "https://www.rd.go.th/62777.html"
+      ],
+      "reviewedAt": "2026-10-25",
+      "version": "2569.2"
+    },
+    {
+      "id": "health",
+      "taxYear": 2569,
+      "name": "ประกันสุขภาพตนเอง",
+      "description": "คำนวณเฉพาะรายการที่ผู้ใช้ยืนยันว่าเข้าเงื่อนไข ไม่ใช่การรับรองจากกรมสรรพากร",
+      "group": "insurance",
+      "kind": "deduction",
+      "status": "verified",
+      "formula": "paid",
+      "cap": 2500000,
+      "rateBps": null,
+      "incomeBase": "ไม่ใช้สัดส่วนรายได้",
+      "sharedCap": "life-health",
+      "multiplier": 1,
+      "order": 21,
+      "effectiveFrom": "2026-01-01",
+      "effectiveTo": null,
+      "conditions": [
+        "เฉพาะเบี้ยประกันสุขภาพที่เข้าเกณฑ์และแจ้งความประสงค์ใช้สิทธิ",
+        "รวมประกันชีวิตและส่วนประกันบำนาญที่จัดสรรเข้ากลุ่มชีวิตไม่เกิน 100,000 บาท"
+      ],
+      "documents": [
+        "หนังสือรับรองเบี้ยประกันสุขภาพ"
+      ],
+      "sources": [
+        "https://www.rd.go.th/62777.html"
+      ],
+      "reviewedAt": "2026-10-25",
+      "version": "2569.2"
+    },
+    {
+      "id": "parent-health",
+      "taxYear": 2569,
+      "name": "ประกันสุขภาพบิดามารดา",
+      "description": "จัดเก็บเอกสารได้ แต่ยังไม่รวมในยอดคำนวณจนกว่าจะตรวจสอบกฎหมายและเงื่อนไขปี 2569 ครบ",
+      "group": "insurance",
+      "kind": "deduction",
+      "status": "verified",
+      "formula": "paid",
+      "cap": 1500000,
+      "rateBps": null,
+      "incomeBase": "ไม่ใช้สัดส่วนรายได้",
+      "sharedCap": null,
+      "multiplier": 1,
+      "order": 40,
+      "effectiveFrom": "2026-01-01",
+      "effectiveTo": null,
+      "conditions": [
+        "บิดามารดามีเงินได้ไม่เกิน 30,000 บาทในปีภาษี",
+        "เป็นบุตรโดยชอบด้วยกฎหมาย ไม่ใช่บุตรบุญธรรม",
+        "รวมบิดามารดาตนเอง/คู่สมรสไม่มีเงินได้ไม่เกิน 15,000 บาท",
+        "กรอกเฉพาะส่วนที่ตนจ่ายและแบ่งสิทธิระหว่างผู้จ่ายเรียบร้อยแล้ว"
+      ],
+      "documents": [
+        "หลักฐานการจ่ายและหนังสือรับรองสิทธิ"
+      ],
+      "sources": [
+        "https://www.rd.go.th/62777.html"
+      ],
+      "reviewedAt": "2026-10-25",
+      "version": "2569.2"
+    },
+    {
+      "id": "spouse-life",
+      "taxYear": 2569,
+      "name": "ประกันชีวิตคู่สมรส",
+      "description": "จัดเก็บเอกสารได้ แต่ยังไม่รวมในยอดคำนวณจนกว่าจะตรวจสอบกฎหมายและเงื่อนไขปี 2569 ครบ",
+      "group": "insurance",
+      "kind": "deduction",
+      "status": "pending",
+      "formula": "paid",
+      "cap": 1000000,
+      "rateBps": null,
+      "incomeBase": "ไม่ใช้สัดส่วนรายได้",
+      "sharedCap": null,
+      "multiplier": 1,
+      "order": 40,
+      "effectiveFrom": "2026-01-01",
+      "effectiveTo": null,
+      "conditions": [
+        "ตรวจสอบสิทธิและเอกสารกับแหล่งทางการก่อนยืนยัน"
+      ],
+      "documents": [
+        "หลักฐานการจ่ายและหนังสือรับรองสิทธิ"
+      ],
+      "sources": [
+        "https://www.rd.go.th/62777.html"
+      ],
+      "reviewedAt": "2026-10-25",
+      "version": "2569.2"
+    },
+    {
+      "id": "pension",
+      "taxYear": 2569,
+      "name": "ประกันชีวิตแบบบำนาญ",
+      "description": "แยกส่วนเบี้ยที่จัดสรรเข้ากลุ่มชีวิตกับส่วนยกเว้นเกษียณ ห้ามใช้เบี้ยส่วนเดียวกันซ้ำ ส่วนเกษียณติด 15%/200,000/เพดานร่วม 500,000",
+      "group": "insurance",
+      "kind": "exemption",
+      "status": "verified",
+      "formula": "pension",
+      "cap": 20000000,
+      "rateBps": 1500,
+      "incomeBase": "เงินได้พึงประเมินที่ต้องเสียภาษีก่อนหักค่าใช้จ่ายและค่าลดหย่อน",
+      "sharedCap": "retirement",
+      "multiplier": 1,
+      "order": 32,
+      "effectiveFrom": "2026-01-01",
+      "effectiveTo": null,
+      "conditions": [
+        "ต้องเป็นแบบบำนาญที่เข้าเงื่อนไขกฎหมาย",
+        "ส่วนจัดสรรประกันชีวิตกับส่วนเกษียณต้องไม่เป็นเบี้ยก้อนเดียวกันซ้ำ",
+        "หากไม่ระบุส่วนประกันชีวิต แอปจัดสรรเข้าวงเงินชีวิตที่เหลือก่อน; ส่วนที่เหลือติด 15% และเพดานเกษียณร่วม"
+      ],
+      "documents": [
+        "หลักฐานการจ่ายและหนังสือรับรองสิทธิ"
+      ],
+      "sources": [
+        "https://www.rd.go.th/60058.html",
+        "https://www.rd.go.th/41745.html",
+        "https://www.rd.go.th/44295.html"
+      ],
+      "reviewedAt": "2026-10-25",
+      "version": "2569.2"
+    },
+    {
+      "id": "social-33",
+      "taxYear": 2569,
+      "name": "ประกันสังคม มาตรา 33",
+      "description": "เงินสมทบจริง เพดานปกติเต็มปี 10,500 บาท ไม่ใช้เพดานเดิม 9,000 บาท",
+      "group": "insurance",
+      "kind": "deduction",
+      "status": "verified",
+      "formula": "paid",
+      "cap": 1050000,
+      "rateBps": null,
+      "incomeBase": "ไม่ใช้สัดส่วนรายได้",
+      "sharedCap": null,
+      "multiplier": 1,
+      "order": 40,
+      "effectiveFrom": "2026-01-01",
+      "effectiveTo": null,
+      "conditions": [
+        "ผู้ประกันตนมาตรา 33 ใช้เฉพาะเงินสมทบของตนที่จ่ายจริง",
+        "ปี 2569 ฐานค่าจ้างสูงสุด 17,500 บาท เงินสมทบปกติสูงสุด 875 บาท/เดือน",
+        "หากมีลดเงินสมทบตามช่วงเวลา/พื้นที่ ใช้ยอดจ่ายจริงที่ต่ำกว่า ไม่เติมสิทธิเต็มปี"
+      ],
+      "documents": [
+        "หลักฐานการจ่ายและหนังสือรับรองสิทธิ"
+      ],
+      "sources": [
+        "https://personal.sru.ac.th/wp-content/uploads/sites/2/2026/01/SSO-0031-V956-25691224.pdf"
+      ],
+      "reviewedAt": "2026-10-25",
+      "version": "2569.2"
+    },
+    {
+      "id": "social-39",
+      "taxYear": 2569,
+      "name": "ประกันสังคม มาตรา 39",
+      "description": "จัดเก็บเอกสารได้ แต่ยังไม่รวมในยอดคำนวณจนกว่าจะตรวจสอบกฎหมายและเงื่อนไขปี 2569 ครบ",
+      "group": "insurance",
+      "kind": "deduction",
+      "status": "pending",
+      "formula": "paid",
+      "cap": null,
+      "rateBps": null,
+      "incomeBase": "ไม่ใช้สัดส่วนรายได้",
+      "sharedCap": null,
+      "multiplier": 1,
+      "order": 40,
+      "effectiveFrom": "2026-01-01",
+      "effectiveTo": null,
+      "conditions": [
+        "ตรวจสอบสิทธิและเอกสารกับแหล่งทางการก่อนยืนยัน"
+      ],
+      "documents": [
+        "หลักฐานการจ่ายและหนังสือรับรองสิทธิ"
+      ],
+      "sources": [
+        "https://www.rd.go.th/62777.html"
+      ],
+      "reviewedAt": "2026-10-25",
+      "version": "2569.2"
+    },
+    {
+      "id": "social-40",
+      "taxYear": 2569,
+      "name": "ประกันสังคม มาตรา 40",
+      "description": "จัดเก็บเอกสารได้ แต่ยังไม่รวมในยอดคำนวณจนกว่าจะตรวจสอบกฎหมายและเงื่อนไขปี 2569 ครบ",
+      "group": "insurance",
+      "kind": "deduction",
+      "status": "pending",
+      "formula": "paid",
+      "cap": null,
+      "rateBps": null,
+      "incomeBase": "ไม่ใช้สัดส่วนรายได้",
+      "sharedCap": null,
+      "multiplier": 1,
+      "order": 40,
+      "effectiveFrom": "2026-01-01",
+      "effectiveTo": null,
+      "conditions": [
+        "ตรวจสอบสิทธิและเอกสารกับแหล่งทางการก่อนยืนยัน"
+      ],
+      "documents": [
+        "หลักฐานการจ่ายและหนังสือรับรองสิทธิ"
+      ],
+      "sources": [
+        "https://www.rd.go.th/62777.html"
+      ],
+      "reviewedAt": "2026-10-25",
+      "version": "2569.2"
+    },
+    {
+      "id": "rmf",
+      "taxYear": 2569,
+      "name": "กองทุนรวมเพื่อการเลี้ยงชีพ (RMF)",
+      "description": "คำนวณเฉพาะรายการที่ผู้ใช้ยืนยันว่าเข้าเงื่อนไข ไม่ใช่การรับรองจากกรมสรรพากร",
+      "group": "retirement",
+      "kind": "exemption",
+      "status": "verified",
+      "formula": "paid",
+      "cap": 50000000,
+      "rateBps": 3000,
+      "incomeBase": "เงินได้พึงประเมินที่ต้องเสียภาษีก่อนหักค่าใช้จ่ายและค่าลดหย่อน",
+      "sharedCap": "retirement",
+      "multiplier": 1,
+      "order": 31,
+      "effectiveFrom": "2026-01-01",
+      "effectiveTo": null,
+      "conditions": [
+        "ไม่เกิน 30% ของเงินได้ที่ต้องเสียภาษีก่อนหักค่าใช้จ่ายและค่าลดหย่อน",
+        "รวมเงินออมเกษียณทุกประเภทที่อยู่ในกลุ่มไม่เกิน 500,000 บาท",
+        "ตรวจเงื่อนไขถือครอง อายุ และการลงทุนต่อเนื่องก่อนยืนยัน"
+      ],
+      "documents": [
+        "หนังสือรับรองซื้อ RMF",
+        "หลักฐานตรวจเงื่อนไขถือครอง"
+      ],
+      "sources": [
+        "https://www.rd.go.th/62777.html"
+      ],
+      "reviewedAt": "2026-10-25",
+      "version": "2569.2"
+    },
+    {
+      "id": "provident",
+      "taxYear": 2569,
+      "name": "กองทุนสำรองเลี้ยงชีพ ส่วนที่จ่ายเอง",
+      "description": "ยอดสิทธิรวมส่วนที่ผู้ใช้จ่ายเอง: ลดหย่อน 10,000 บาทแรก และยกเว้นส่วนเกินไม่เกิน 490,000 บาท รวมไม่เกิน 15% ของค่าจ้างและเพดานเกษียณร่วม 500,000 บาท ไม่ใช่ช่องกรอกแบบยื่น",
+      "group": "retirement",
+      "kind": "exemption",
+      "status": "verified",
+      "formula": "paid",
+      "cap": 50000000,
+      "rateBps": 1500,
+      "incomeBase": "ค่าจ้างที่ใช้คำนวณเงินสะสมกองทุนสำรองเลี้ยงชีพ (รุ่นนี้ใช้เมื่อเงินเดือนเป็นหลัก)",
+      "sharedCap": "retirement",
+      "multiplier": 1,
+      "order": 30,
+      "effectiveFrom": "2026-01-01",
+      "effectiveTo": null,
+      "conditions": [
+        "เฉพาะเงินสะสมส่วนลูกจ้างจ่ายจริง ไม่รวมเงินสมทบนายจ้าง",
+        "ไม่เกิน 15% ของค่าจ้างที่ใช้สะสม และรวมทุกกลุ่มเกษียณไม่เกิน 500,000 บาท",
+        "ใช้ยอดที่หนังสือรับรองระบุว่ามีสิทธิ ไม่ใช้ยอดรับเงินก้อนเมื่อออกจากงานแทนยอดสะสมปีนี้"
+      ],
+      "documents": [
+        "หลักฐานการจ่ายและหนังสือรับรองสิทธิ"
+      ],
+      "sources": [
+        "https://www.rd.go.th/62149.html",
+        "https://www.rd.go.th/62777.html"
+      ],
+      "reviewedAt": "2026-10-25",
+      "version": "2569.2"
+    },
+    {
+      "id": "gpf",
+      "taxYear": 2569,
+      "name": "กองทุนบำเหน็จบำนาญข้าราชการ (กบข.)",
+      "description": "จัดเก็บเอกสารได้ แต่ยังไม่รวมในยอดคำนวณจนกว่าจะตรวจสอบกฎหมายและเงื่อนไขปี 2569 ครบ",
+      "group": "retirement",
+      "kind": "exemption",
+      "status": "verified",
+      "formula": "paid",
+      "cap": 50000000,
+      "rateBps": 3000,
+      "incomeBase": "เงินเดือนที่ใช้คำนวณเงินสะสม กบข. (โมเดลนี้เปิดคำนวณเฉพาะเงินเดือนเป็นหลัก)",
+      "sharedCap": "retirement",
+      "multiplier": 1,
+      "order": 30,
+      "effectiveFrom": "2026-01-01",
+      "effectiveTo": null,
+      "conditions": [
+        "เฉพาะเงินสะสมของสมาชิกและออมเพิ่ม ไม่รวมสมทบรัฐ",
+        "3% บังคับ + ออมเพิ่มไม่เกิน 27% รวมไม่เกิน 30% ของเงินเดือน",
+        "ร่วมกับเงินออมเกษียณประเภทอื่นไม่เกิน 500,000 บาท"
+      ],
+      "documents": [
+        "หลักฐานการจ่ายและหนังสือรับรองสิทธิ"
+      ],
+      "sources": [
+        "https://www.gpf.or.th/thai2019/10contact/main.php?page=7",
+        "https://www.gpf.or.th/thai2019/assets/ebook/MembershipGuide2567/files/MembershipGuide_2567.pdf"
+      ],
+      "reviewedAt": "2026-10-25",
+      "version": "2569.2"
+    },
+    {
+      "id": "teacher-fund",
+      "taxYear": 2569,
+      "name": "กองทุนสงเคราะห์ครูโรงเรียนเอกชน",
+      "description": "จัดเก็บเอกสารได้ แต่ยังไม่รวมในยอดคำนวณจนกว่าจะตรวจสอบกฎหมายและเงื่อนไขปี 2569 ครบ",
+      "group": "retirement",
+      "kind": "deduction",
+      "status": "pending",
+      "formula": "paid",
+      "cap": null,
+      "rateBps": null,
+      "incomeBase": "ไม่ใช้สัดส่วนรายได้",
+      "sharedCap": "retirement",
+      "multiplier": 1,
+      "order": 40,
+      "effectiveFrom": "2026-01-01",
+      "effectiveTo": null,
+      "conditions": [
+        "ตรวจสอบสิทธิและเอกสารกับแหล่งทางการก่อนยืนยัน"
+      ],
+      "documents": [
+        "หลักฐานการจ่ายและหนังสือรับรองสิทธิ"
+      ],
+      "sources": [
+        "https://www.rd.go.th/62777.html"
+      ],
+      "reviewedAt": "2026-10-25",
+      "version": "2569.2"
+    },
+    {
+      "id": "nsf",
+      "taxYear": 2569,
+      "name": "กองทุนการออมแห่งชาติ (กอช.)",
+      "description": "จัดเก็บเอกสารได้ แต่ยังไม่รวมในยอดคำนวณจนกว่าจะตรวจสอบกฎหมายและเงื่อนไขปี 2569 ครบ",
+      "group": "retirement",
+      "kind": "exemption",
+      "status": "verified",
+      "formula": "paid",
+      "cap": 3000000,
+      "rateBps": null,
+      "incomeBase": "ไม่ใช้สัดส่วนรายได้",
+      "sharedCap": "retirement",
+      "multiplier": 1,
+      "order": 30,
+      "effectiveFrom": "2026-01-01",
+      "effectiveTo": null,
+      "conditions": [
+        "เฉพาะเงินสะสมของสมาชิกที่จ่ายจริง ไม่รวมสมทบรัฐ",
+        "รวมกลุ่มเกษียณทุกประเภทไม่เกิน 500,000 บาท"
+      ],
+      "documents": [
+        "หลักฐานการจ่ายและหนังสือรับรองสิทธิ"
+      ],
+      "sources": [
+        "https://www.nsf.or.th/th/node/968534"
+      ],
+      "reviewedAt": "2026-10-25",
+      "version": "2569.2"
+    },
+    {
+      "id": "other-retirement",
+      "taxYear": 2569,
+      "name": "เงินออมเกษียณอื่น",
+      "description": "จัดเก็บเอกสารได้ แต่ยังไม่รวมในยอดคำนวณจนกว่าจะตรวจสอบกฎหมายและเงื่อนไขปี 2569 ครบ",
+      "group": "retirement",
+      "kind": "deduction",
+      "status": "pending",
+      "formula": "paid",
+      "cap": null,
+      "rateBps": null,
+      "incomeBase": "ไม่ใช้สัดส่วนรายได้",
+      "sharedCap": "retirement",
+      "multiplier": 1,
+      "order": 40,
+      "effectiveFrom": "2026-01-01",
+      "effectiveTo": null,
+      "conditions": [
+        "ตรวจสอบสิทธิและเอกสารกับแหล่งทางการก่อนยืนยัน"
+      ],
+      "documents": [
+        "หลักฐานการจ่ายและหนังสือรับรองสิทธิ"
+      ],
+      "sources": [
+        "https://www.rd.go.th/62777.html"
+      ],
+      "reviewedAt": "2026-10-25",
+      "version": "2569.2"
+    },
+    {
+      "id": "thai-esg",
+      "taxYear": 2569,
+      "name": "Thai ESG",
+      "description": "คำนวณเฉพาะรายการที่ผู้ใช้ยืนยันว่าเข้าเงื่อนไข ไม่ใช่การรับรองจากกรมสรรพากร",
+      "group": "investment",
+      "kind": "exemption",
+      "status": "verified",
+      "formula": "paid",
+      "cap": 30000000,
+      "rateBps": 3000,
+      "incomeBase": "เงินได้พึงประเมินที่ต้องเสียภาษีก่อนหักค่าใช้จ่ายและค่าลดหย่อน",
+      "sharedCap": "thai-esg",
+      "multiplier": 1,
+      "order": 40,
+      "effectiveFrom": "2026-01-01",
+      "effectiveTo": "2026-12-31",
+      "conditions": [
+        "ซื้อระหว่าง 1 มกราคม 2567 ถึง 31 ธันวาคม 2569",
+        "ถือครองอย่างน้อย 5 ปีนับจากวันที่ซื้อ ตามเงื่อนไข",
+        "เงินซื้อใหม่ Thai ESGX ในปี 2569 ใช้เพดานร่วมกัน"
+      ],
+      "documents": [
+        "หนังสือรับรองซื้อ Thai ESG",
+        "หลักฐานวันซื้อและเงื่อนไขถือครอง"
+      ],
+      "sources": [
+        "https://www.sec.or.th/TH/Pages/News_Detail.aspx?SECID=11027"
+      ],
+      "reviewedAt": "2026-10-25",
+      "version": "2569.2"
+    },
+    {
+      "id": "thai-esgx-new",
+      "taxYear": 2569,
+      "name": "Thai ESGX เงินลงทุนใหม่",
+      "description": "คำนวณเฉพาะรายการที่ผู้ใช้ยืนยันว่าเข้าเงื่อนไข ไม่ใช่การรับรองจากกรมสรรพากร",
+      "group": "investment",
+      "kind": "exemption",
+      "status": "verified",
+      "formula": "paid",
+      "cap": 30000000,
+      "rateBps": 3000,
+      "incomeBase": "เงินได้พึงประเมินที่ต้องเสียภาษีก่อนหักค่าใช้จ่ายและค่าลดหย่อน",
+      "sharedCap": "thai-esg",
+      "multiplier": 1,
+      "order": 41,
+      "effectiveFrom": "2026-01-01",
+      "effectiveTo": "2026-12-31",
+      "conditions": [
+        "ปี 2569 ไม่ใช่สิทธิเงินใหม่พิเศษแยกวงเงินปี 2568",
+        "รวม Thai ESG ไม่เกิน 30% ของเงินได้และ 300,000 บาท",
+        "ตรวจวันซื้อและการถือครองตามเงื่อนไข"
+      ],
+      "documents": [
+        "หนังสือรับรองซื้อ Thai ESGX"
+      ],
+      "sources": [
+        "https://www.sec.or.th/TH/Documents/Thai%20ESGX/QA-LTF-to-Thai%20ESGX-010468.pdf",
+        "https://www.sec.or.th/TH/Pages/News_Detail.aspx?SECID=11027"
+      ],
+      "reviewedAt": "2026-10-25",
+      "version": "2569.2"
+    },
+    {
+      "id": "thai-esgx-carry",
+      "taxYear": 2569,
+      "name": "Thai ESGX สิทธิต่อเนื่องจากสับเปลี่ยน LTF",
+      "description": "คำนวณเฉพาะรายการที่ผู้ใช้ยืนยันว่าเข้าเงื่อนไข ไม่ใช่การรับรองจากกรมสรรพากร",
+      "group": "investment",
+      "kind": "exemption",
+      "status": "verified",
+      "formula": "esgx-carry",
+      "cap": 5000000,
+      "rateBps": null,
+      "incomeBase": "ไม่ใช้สัดส่วนรายได้",
+      "sharedCap": null,
+      "multiplier": 1,
+      "order": 42,
+      "effectiveFrom": "2026-01-01",
+      "effectiveTo": "2029-12-31",
+      "conditions": [
+        "ต้องมีหลักฐานสับเปลี่ยน LTF ที่เข้าเกณฑ์ในปี 2568 และสิทธิปีแรก",
+        "ปี 2569–2572 ใช้ส่วนคงเหลือหลังปีแรกหาร 4 ไม่ใช่ทุกคนได้ 50,000 บาท",
+        "แหล่งสิทธิเดียวกันใช้ได้ครั้งเดียวต่อปี ห้ามใส่เงินสับเปลี่ยนซ้ำเป็นเงินลงทุนใหม่"
+      ],
+      "documents": [
+        "หลักฐานสับเปลี่ยน LTF ปี 2568",
+        "หลักฐานยอดใช้สิทธิปี 2568"
+      ],
+      "sources": [
+        "https://www.sec.or.th/TH/Pages/News_Detail.aspx?SECID=11672",
+        "https://www.sec.or.th/TH/Documents/Thai%20ESGX/QA-LTF-to-Thai%20ESGX-010468.pdf"
+      ],
+      "reviewedAt": "2026-10-25",
+      "version": "2569.2"
+    },
+    {
+      "id": "social-enterprise",
+      "taxYear": 2569,
+      "name": "ลงทุนในวิสาหกิจเพื่อสังคม",
+      "description": "จัดเก็บเอกสารได้ แต่ยังไม่รวมในยอดคำนวณจนกว่าจะตรวจสอบกฎหมายและเงื่อนไขปี 2569 ครบ",
+      "group": "investment",
+      "kind": "deduction",
+      "status": "pending",
+      "formula": "paid",
+      "cap": null,
+      "rateBps": null,
+      "incomeBase": "ไม่ใช้สัดส่วนรายได้",
+      "sharedCap": null,
+      "multiplier": 1,
+      "order": 40,
+      "effectiveFrom": "2026-01-01",
+      "effectiveTo": null,
+      "conditions": [
+        "ตรวจสอบสิทธิและเอกสารกับแหล่งทางการก่อนยืนยัน"
+      ],
+      "documents": [
+        "หลักฐานการจ่ายและหนังสือรับรองสิทธิ"
+      ],
+      "sources": [
+        "https://www.rd.go.th/62777.html"
+      ],
+      "reviewedAt": "2026-10-25",
+      "version": "2569.2"
+    },
+    {
+      "id": "ssf-holding",
+      "taxYear": 2569,
+      "name": "SSF — เอกสารการถือครองเดิม",
+      "description": "คำนวณเฉพาะรายการที่ผู้ใช้ยืนยันว่าเข้าเงื่อนไข ไม่ใช่การรับรองจากกรมสรรพากร",
+      "group": "investment",
+      "kind": "documents",
+      "status": "expired",
+      "formula": "paid",
+      "cap": null,
+      "rateBps": null,
+      "incomeBase": "ไม่ใช้สัดส่วนรายได้",
+      "sharedCap": null,
+      "multiplier": 1,
+      "order": 40,
+      "effectiveFrom": "2026-01-01",
+      "effectiveTo": null,
+      "conditions": [
+        "ไม่เปิดสิทธิเงินซื้อใหม่ในปี 2569",
+        "เก็บหลักฐานการถือครองเดิมเท่านั้น"
+      ],
+      "documents": [
+        "หลักฐานการจ่ายและหนังสือรับรองสิทธิ"
+      ],
+      "sources": [
+        "https://www.rd.go.th/62777.html"
+      ],
+      "reviewedAt": "2026-10-25",
+      "version": "2569.2"
+    },
+    {
+      "id": "ltf-holding",
+      "taxYear": 2569,
+      "name": "LTF — เอกสารการถือครองเดิม",
+      "description": "คำนวณเฉพาะรายการที่ผู้ใช้ยืนยันว่าเข้าเงื่อนไข ไม่ใช่การรับรองจากกรมสรรพากร",
+      "group": "investment",
+      "kind": "documents",
+      "status": "expired",
+      "formula": "paid",
+      "cap": null,
+      "rateBps": null,
+      "incomeBase": "ไม่ใช้สัดส่วนรายได้",
+      "sharedCap": null,
+      "multiplier": 1,
+      "order": 40,
+      "effectiveFrom": "2026-01-01",
+      "effectiveTo": null,
+      "conditions": [
+        "ไม่เปิดสิทธิเงินซื้อใหม่",
+        "ห้ามนับซ้ำกับสิทธิสับเปลี่ยน Thai ESGX"
+      ],
+      "documents": [
+        "หลักฐานการจ่ายและหนังสือรับรองสิทธิ"
+      ],
+      "sources": [
+        "https://www.rd.go.th/62777.html"
+      ],
+      "reviewedAt": "2026-10-25",
+      "version": "2569.2"
+    },
+    {
+      "id": "housing",
+      "taxYear": 2569,
+      "name": "ดอกเบี้ยกู้ยืมเพื่อที่อยู่อาศัย",
+      "description": "ดอกเบี้ยบ้านตามหนังสือรับรองรายปี เพดาน 100,000 บาทหารจำนวนผู้กู้ร่วม รุ่นนี้ใช้หนึ่งรายการหนังสือรับรองรวมต่อปี",
+      "group": "housing",
+      "kind": "deduction",
+      "status": "verified",
+      "formula": "paid",
+      "cap": 10000000,
+      "rateBps": null,
+      "incomeBase": "ไม่ใช้สัดส่วนรายได้",
+      "sharedCap": null,
+      "multiplier": 1,
+      "order": 40,
+      "effectiveFrom": "2026-01-01",
+      "effectiveTo": null,
+      "conditions": [
+        "เฉพาะดอกเบี้ยกู้ยืมเพื่อซื้อ เช่าซื้อ หรือสร้างอาคารอยู่อาศัยที่เข้าเกณฑ์",
+        "ใช้ยอดดอกเบี้ยรวมทั้งปีในหนังสือรับรองเพียงหนึ่งรายการ ไม่ใช่เงินต้น",
+        "กรณีกู้ร่วม หารยอดและวงเงินด้วยจำนวนผู้กู้ร่วม",
+        "กรณีหลายสัญญาหรือการแบ่งสิทธิพิเศษ ให้ตรวจผู้เชี่ยวชาญ ไม่เปิดหลายรายการนับวงเงินซ้ำ"
+      ],
+      "documents": [
+        "หลักฐานการจ่ายและหนังสือรับรองสิทธิ"
+      ],
+      "sources": [
+        "https://www.rd.go.th/60060.html"
+      ],
+      "reviewedAt": "2026-10-25",
+      "version": "2569.2"
+    },
+    {
+      "id": "housing-special",
+      "taxYear": 2569,
+      "name": "มาตรการที่อยู่อาศัยเฉพาะปี",
+      "description": "จัดเก็บเอกสารได้ แต่ยังไม่รวมในยอดคำนวณจนกว่าจะตรวจสอบกฎหมายและเงื่อนไขปี 2569 ครบ",
+      "group": "housing",
+      "kind": "deduction",
+      "status": "pending",
+      "formula": "paid",
+      "cap": null,
+      "rateBps": null,
+      "incomeBase": "ไม่ใช้สัดส่วนรายได้",
+      "sharedCap": null,
+      "multiplier": 1,
+      "order": 40,
+      "effectiveFrom": "2026-01-01",
+      "effectiveTo": null,
+      "conditions": [
+        "ตรวจสอบสิทธิและเอกสารกับแหล่งทางการก่อนยืนยัน"
+      ],
+      "documents": [
+        "หลักฐานการจ่ายและหนังสือรับรองสิทธิ"
+      ],
+      "sources": [
+        "https://www.rd.go.th/62777.html"
+      ],
+      "reviewedAt": "2026-10-25",
+      "version": "2569.2"
+    },
+    {
+      "id": "donation",
+      "taxYear": 2569,
+      "name": "บริจาคทั่วไป",
+      "description": "จัดเก็บเอกสารได้ แต่ยังไม่รวมในยอดคำนวณจนกว่าจะตรวจสอบกฎหมายและเงื่อนไขปี 2569 ครบ",
+      "group": "donations",
+      "kind": "deduction",
+      "status": "verified",
+      "formula": "donation",
+      "cap": null,
+      "rateBps": 1000,
+      "incomeBase": "เงินได้หลังหักค่าใช้จ่าย ค่าลดหย่อน ยกเว้น และเงินบริจาคสิทธิพิเศษ",
+      "sharedCap": null,
+      "multiplier": 1,
+      "order": 90,
+      "effectiveFrom": "2026-01-01",
+      "effectiveTo": null,
+      "conditions": [
+        "ผู้รับบริจาคต้องเป็นหน่วยงานที่กฎหมายรับรองสิทธิ",
+        "บริจาควัด/องค์การหรือสถานสาธารณกุศลตั้งแต่ 1 มกราคม 2569 ต้องผ่าน e-Donation",
+        "ไม่ใช่ทุกการโอนเงินหรือ QR เป็น e-Donation",
+        "รายการเดียวห้ามนับทั้งสิทธิพิเศษและทั่วไป"
+      ],
+      "documents": [
+        "หลักฐานการจ่ายและหนังสือรับรองสิทธิ"
+      ],
+      "sources": [
+        "https://www.rd.go.th/5937.html",
+        "https://www.rd.go.th/fileadmin/user_upload/lorkhor/newsbanner/2025/08/86084.pdf"
+      ],
+      "reviewedAt": "2026-10-25",
+      "version": "2569.2"
+    },
+    {
+      "id": "donation-double",
+      "taxYear": 2569,
+      "name": "บริจาคที่มีสิทธิมากกว่าหนึ่งเท่า",
+      "description": "จัดเก็บเอกสารได้ แต่ยังไม่รวมในยอดคำนวณจนกว่าจะตรวจสอบกฎหมายและเงื่อนไขปี 2569 ครบ",
+      "group": "donations",
+      "kind": "deduction",
+      "status": "pending",
+      "formula": "donation",
+      "cap": null,
+      "rateBps": 1000,
+      "incomeBase": "เงินได้พึงประเมินที่ต้องเสียภาษีก่อนหักค่าใช้จ่ายและค่าลดหย่อน",
+      "sharedCap": null,
+      "multiplier": 2,
+      "order": 80,
+      "effectiveFrom": "2026-01-01",
+      "effectiveTo": null,
+      "conditions": [
+        "ต้องแยกประเภทผู้รับบริจาคและช่วงเวลาที่กฎหมายให้สิทธิ",
+        "มีการเปลี่ยนกฎหมายปี 2569 จึงยังไม่เปิดตัวคูณเหมารวม",
+        "ฐาน 10% และลำดับก่อนบริจาคทั่วไปต้องตรวจแยกมาตรการ"
+      ],
+      "documents": [
+        "หลักฐานการจ่ายและหนังสือรับรองสิทธิ"
+      ],
+      "sources": [
+        "https://www.rd.go.th/62777.html"
+      ],
+      "reviewedAt": "2026-10-25",
+      "version": "2569.2"
+    },
+    {
+      "id": "political",
+      "taxYear": 2569,
+      "name": "บริจาคพรรคการเมือง",
+      "description": "จัดเก็บเอกสารได้ แต่ยังไม่รวมในยอดคำนวณจนกว่าจะตรวจสอบกฎหมายและเงื่อนไขปี 2569 ครบ",
+      "group": "donations",
+      "kind": "deduction",
+      "status": "verified",
+      "formula": "paid",
+      "cap": 1000000,
+      "rateBps": null,
+      "incomeBase": "ไม่ใช้สัดส่วนรายได้",
+      "sharedCap": null,
+      "multiplier": 1,
+      "order": 70,
+      "effectiveFrom": "2026-01-01",
+      "effectiveTo": null,
+      "conditions": [
+        "ผู้ใช้เป็นบุคคลธรรมดาสัญชาติไทย",
+        "บริจาคพรรคการเมืองที่เข้าเงื่อนไขตามกฎหมาย มีหลักฐาน",
+        "รวมไม่เกิน 10,000 บาท ไม่ใช้เงินเดียวกันซ้ำกับบริจาคทั่วไป"
+      ],
+      "documents": [
+        "หลักฐานการจ่ายและหนังสือรับรองสิทธิ"
+      ],
+      "sources": [
+        "https://www.rd.go.th/5937.html",
+        "https://www.rd.go.th/62777.html"
+      ],
+      "reviewedAt": "2026-10-25",
+      "version": "2569.2"
+    },
+    {
+      "id": "solar-rooftop",
+      "taxYear": 2569,
+      "name": "Solar Rooftop ที่อยู่อาศัย",
+      "description": "จัดเก็บเอกสารได้ แต่ยังไม่รวมในยอดคำนวณจนกว่าจะตรวจสอบกฎหมายและเงื่อนไขปี 2569 ครบ",
+      "group": "special",
+      "kind": "deduction",
+      "status": "pending",
+      "formula": "paid",
+      "cap": 20000000,
+      "rateBps": null,
+      "incomeBase": "ไม่ใช้สัดส่วนรายได้",
+      "sharedCap": null,
+      "multiplier": 1,
+      "order": 40,
+      "effectiveFrom": "2026-01-01",
+      "effectiveTo": null,
+      "conditions": [
+        "ซื้อ 3 มีนาคม 2569 ถึง 31 ธันวาคม 2571 และเชื่อมต่อสำเร็จภายในกำหนด",
+        "ใช้สิทธิในปีที่ได้รับอนุญาตเชื่อมต่อระบบ ไม่ใช่ปีจ่ายเสมอไป",
+        "ตรวจพระราชกฤษฎีกา 805/2569 และประกาศอธิบดี 470 ก่อนเปิดคำนวณ"
+      ],
+      "documents": [
+        "หลักฐานการจ่ายและหนังสือรับรองสิทธิ"
+      ],
+      "sources": [
+        "https://www.rd.go.th/fileadmin/user_upload/lorkhor/newsbanner/2026/10/01_PNG_Solar_Rooftop_Tax_Infographic.png"
+      ],
+      "reviewedAt": "2026-10-25",
+      "version": "2569.2"
+    },
+    {
+      "id": "annual-shopping",
+      "taxYear": 2569,
+      "name": "ซื้อสินค้า — มาตรการเฉพาะปี",
+      "description": "จัดเก็บเอกสารได้ แต่ยังไม่รวมในยอดคำนวณจนกว่าจะตรวจสอบกฎหมายและเงื่อนไขปี 2569 ครบ",
+      "group": "special",
+      "kind": "deduction",
+      "status": "pending",
+      "formula": "paid",
+      "cap": null,
+      "rateBps": null,
+      "incomeBase": "ไม่ใช้สัดส่วนรายได้",
+      "sharedCap": null,
+      "multiplier": 1,
+      "order": 40,
+      "effectiveFrom": "2026-01-01",
+      "effectiveTo": null,
+      "conditions": [
+        "ไม่ยกมาตรการปี 2567/2568 มาใช้โดยอัตโนมัติ"
+      ],
+      "documents": [
+        "หลักฐานการจ่ายและหนังสือรับรองสิทธิ"
+      ],
+      "sources": [
+        "https://www.rd.go.th/62777.html"
+      ],
+      "reviewedAt": "2026-10-25",
+      "version": "2569.2"
+    },
+    {
+      "id": "annual-tourism",
+      "taxYear": 2569,
+      "name": "ท่องเที่ยว — มาตรการเฉพาะปี",
+      "description": "จัดเก็บเอกสารได้ แต่ยังไม่รวมในยอดคำนวณจนกว่าจะตรวจสอบกฎหมายและเงื่อนไขปี 2569 ครบ",
+      "group": "special",
+      "kind": "deduction",
+      "status": "pending",
+      "formula": "paid",
+      "cap": null,
+      "rateBps": null,
+      "incomeBase": "ไม่ใช้สัดส่วนรายได้",
+      "sharedCap": null,
+      "multiplier": 1,
+      "order": 40,
+      "effectiveFrom": "2026-01-01",
+      "effectiveTo": null,
+      "conditions": [
+        "ตรวจสอบสิทธิและเอกสารกับแหล่งทางการก่อนยืนยัน"
+      ],
+      "documents": [
+        "หลักฐานการจ่ายและหนังสือรับรองสิทธิ"
+      ],
+      "sources": [
+        "https://www.rd.go.th/62777.html"
+      ],
+      "reviewedAt": "2026-10-25",
+      "version": "2569.2"
+    },
+    {
+      "id": "annual-repair",
+      "taxYear": 2569,
+      "name": "ซ่อมแซม — มาตรการเฉพาะปี",
+      "description": "จัดเก็บเอกสารได้ แต่ยังไม่รวมในยอดคำนวณจนกว่าจะตรวจสอบกฎหมายและเงื่อนไขปี 2569 ครบ",
+      "group": "special",
+      "kind": "deduction",
+      "status": "pending",
+      "formula": "paid",
+      "cap": null,
+      "rateBps": null,
+      "incomeBase": "ไม่ใช้สัดส่วนรายได้",
+      "sharedCap": null,
+      "multiplier": 1,
+      "order": 40,
+      "effectiveFrom": "2026-01-01",
+      "effectiveTo": null,
+      "conditions": [
+        "ตรวจสอบสิทธิและเอกสารกับแหล่งทางการก่อนยืนยัน"
+      ],
+      "documents": [
+        "หลักฐานการจ่ายและหนังสือรับรองสิทธิ"
+      ],
+      "sources": [
+        "https://www.rd.go.th/62777.html"
+      ],
+      "reviewedAt": "2026-10-25",
+      "version": "2569.2"
+    },
+    {
+      "id": "withholding-doc",
+      "taxYear": 2569,
+      "name": "หนังสือรับรองหักภาษี ณ ที่จ่าย 50 ทวิ",
+      "description": "คำนวณเฉพาะรายการที่ผู้ใช้ยืนยันว่าเข้าเงื่อนไข ไม่ใช่การรับรองจากกรมสรรพากร",
+      "group": "income",
+      "kind": "documents",
+      "status": "verified",
+      "formula": "paid",
+      "cap": null,
+      "rateBps": null,
+      "incomeBase": "ไม่ใช้สัดส่วนรายได้",
+      "sharedCap": null,
+      "multiplier": 1,
+      "order": 40,
+      "effectiveFrom": "2026-01-01",
+      "effectiveTo": null,
+      "conditions": [
+        "จัดเก็บเอกสาร ไม่เพิ่มยอดลดหย่อน"
+      ],
+      "documents": [
+        "หนังสือรับรอง 50 ทวิ"
+      ],
+      "sources": [
+        "https://www.rd.go.th/62777.html"
+      ],
+      "reviewedAt": "2026-10-25",
+      "version": "2569.2"
+    },
+    {
+      "id": "income-doc",
+      "taxYear": 2569,
+      "name": "หลักฐานรายได้อื่น",
+      "description": "คำนวณเฉพาะรายการที่ผู้ใช้ยืนยันว่าเข้าเงื่อนไข ไม่ใช่การรับรองจากกรมสรรพากร",
+      "group": "income",
+      "kind": "documents",
+      "status": "verified",
+      "formula": "paid",
+      "cap": null,
+      "rateBps": null,
+      "incomeBase": "ไม่ใช้สัดส่วนรายได้",
+      "sharedCap": null,
+      "multiplier": 1,
+      "order": 40,
+      "effectiveFrom": "2026-01-01",
+      "effectiveTo": null,
+      "conditions": [
+        "จัดเก็บเอกสาร ไม่เพิ่มยอดลดหย่อน"
+      ],
+      "documents": [
+        "หลักฐานการจ่ายและหนังสือรับรองสิทธิ"
+      ],
+      "sources": [
+        "https://www.rd.go.th/62777.html"
+      ],
+      "reviewedAt": "2026-10-25",
+      "version": "2569.2"
+    },
+    {
+      "id": "filing-doc",
+      "taxYear": 2569,
+      "name": "แบบยื่นและหลักฐานชำระภาษี",
+      "description": "คำนวณเฉพาะรายการที่ผู้ใช้ยืนยันว่าเข้าเงื่อนไข ไม่ใช่การรับรองจากกรมสรรพากร",
+      "group": "income",
+      "kind": "documents",
+      "status": "verified",
+      "formula": "paid",
+      "cap": null,
+      "rateBps": null,
+      "incomeBase": "ไม่ใช้สัดส่วนรายได้",
+      "sharedCap": null,
+      "multiplier": 1,
+      "order": 40,
+      "effectiveFrom": "2026-01-01",
+      "effectiveTo": null,
+      "conditions": [
+        "ไม่ใช่การยื่นแบบผ่านแอป ไม่เพิ่มยอดลดหย่อน"
+      ],
+      "documents": [
+        "หลักฐานการจ่ายและหนังสือรับรองสิทธิ"
+      ],
+      "sources": [
+        "https://www.rd.go.th/62777.html"
+      ],
+      "reviewedAt": "2026-10-25",
+      "version": "2569.2"
+    },
+    {
+      "id": "donation-education",
+      "taxYear": 2569,
+      "name": "บริจาคเพื่อการศึกษา 2 เท่า",
+      "description": "ใช้สิทธิสองเท่าเฉพาะเงินบริจาคและผู้รับที่เข้าเงื่อนไขตามพระราชกฤษฎีกา ผ่าน e-Donation และเพดานร่วม 10% หลังค่าใช้จ่ายและสิทธิอื่น",
+      "group": "donations",
+      "kind": "deduction",
+      "status": "verified",
+      "formula": "donation",
+      "cap": null,
+      "rateBps": 1000,
+      "incomeBase": "เงินได้หลังหักค่าใช้จ่าย ค่าลดหย่อน และยกเว้น ก่อนบริจาคทั่วไป",
+      "sharedCap": "donation-special",
+      "multiplier": 2,
+      "order": 80,
+      "effectiveFrom": "2025-01-01",
+      "effectiveTo": "2027-12-31",
+      "conditions": [
+        "บุคคลธรรมดาบริจาคเป็นเงินผ่าน e-Donation ระหว่าง 1 มกราคม 2568 ถึง 31 ธันวาคม 2570",
+        "สถานศึกษารัฐ เอกชนในระบบ (ไม่รวมเอกชนนอกระบบ) มหาวิทยาลัยเอกชน และสถาบันที่กำหนดตามตัวบท",
+        "ยอดหลังคูณร่วมกับเงินบริจาคสิทธิพิเศษอื่นไม่เกิน 10% ของฐาน",
+        "ไม่ใช้เงินบริจาคก้อนเดียวกันซ้ำเป็นบริจาคทั่วไป"
+      ],
+      "documents": [
+        "รายการ e-Donation และหลักฐานผู้รับเข้าเกณฑ์"
+      ],
+      "sources": [
+        "https://www.rd.go.th/fileadmin/user_upload/kormor/newlaw/dc809.pdf"
+      ],
+      "reviewedAt": "2026-10-25",
+      "version": "2569.2"
+    },
+    {
+      "id": "donation-sport",
+      "taxYear": 2569,
+      "name": "บริจาคเพื่อกีฬา 2 เท่า",
+      "description": "ใช้สิทธิสองเท่าเฉพาะเงินบริจาคและผู้รับที่เข้าเงื่อนไขตามพระราชกฤษฎีกา ผ่าน e-Donation และเพดานร่วม 10% หลังค่าใช้จ่ายและสิทธิอื่น",
+      "group": "donations",
+      "kind": "deduction",
+      "status": "verified",
+      "formula": "donation",
+      "cap": null,
+      "rateBps": 1000,
+      "incomeBase": "เงินได้หลังหักค่าใช้จ่าย ค่าลดหย่อน และยกเว้น ก่อนบริจาคทั่วไป",
+      "sharedCap": "donation-special",
+      "multiplier": 2,
+      "order": 80,
+      "effectiveFrom": "2025-01-01",
+      "effectiveTo": "2027-12-31",
+      "conditions": [
+        "บุคคลธรรมดาบริจาคเป็นเงินผ่าน e-Donation ระหว่าง 1 มกราคม 2568 ถึง 31 ธันวาคม 2570",
+        "การกีฬาแห่งประเทศไทย คณะกรรมการ/สมาคมกีฬาจังหวัด สมาคมกีฬาแห่งประเทศไทย กองทุนพัฒนาการกีฬาแห่งชาติ หรือกรมพลศึกษา ตามตัวบท",
+        "ยอดหลังคูณร่วมกับเงินบริจาคสิทธิพิเศษอื่นไม่เกิน 10% ของฐาน",
+        "ไม่ใช้เงินบริจาคก้อนเดียวกันซ้ำเป็นบริจาคทั่วไป"
+      ],
+      "documents": [
+        "รายการ e-Donation และหลักฐานผู้รับเข้าเกณฑ์"
+      ],
+      "sources": [
+        "https://www.rd.go.th/fileadmin/user_upload/kormor/newlaw/dc810.pdf"
+      ],
+      "reviewedAt": "2026-10-25",
+      "version": "2569.2"
+    }
+  ],
+  "sharedCaps": {
+    "life-health": 10000000,
+    "retirement": 50000000,
+    "thai-esg": 30000000
+  },
+  "brackets": [
+    {
+      "upTo": 15000000,
+      "rateBps": 0
+    },
+    {
+      "upTo": 30000000,
+      "rateBps": 500
+    },
+    {
+      "upTo": 50000000,
+      "rateBps": 1000
+    },
+    {
+      "upTo": 75000000,
+      "rateBps": 1500
+    },
+    {
+      "upTo": 100000000,
+      "rateBps": 2000
+    },
+    {
+      "upTo": 200000000,
+      "rateBps": 2500
+    },
+    {
+      "upTo": 500000000,
+      "rateBps": 3000
+    },
+    {
+      "upTo": null,
+      "rateBps": 3500
+    }
+  ],
+  "notes": [
+    "ชุดกฎตรวจสอบได้บางส่วน ไม่ใช่การรับรองสิทธิทั้งหมดของปี 2569",
+    "เฉพาะรายการผู้ใช้ตรวจยืนยันและกฎยืนยันแล้วจึงนับในโมเดล",
+    "ปีอนาคตไม่สืบทอดวงเงินและกฎยืนยันโดยอัตโนมัติ",
+    "การประมาณรุ่นนี้ไม่ครอบคลุม ภ.ง.ด.90 ทุกกรณี เช่น ภาษีขั้นต่ำ เงินได้ต่างประเทศ และเครดิตภาษีเงินปันผล",
+    "ยอดประกันชีวิตแสดงรวมส่วนลดหย่อน 10,000 และส่วนยกเว้นเพิ่มเติม 90,000 เพื่อประมาณ ไม่ใช่ช่องแบบยื่น",
+    "ฐานและวงเงินใช้หน่วยสตางค์; ภาษีตามอัตราก้าวหน้าสุดท้ายตัดเศษไม่ถึงหนึ่งบาท ตามพระราชกฤษฎีกา 10/2500 มาตรา 5 (https://rd.go.th/2376.html) และข้อหารือ ภ.ง.ด.91 (https://www.rd.go.th/25123.html); ยังไม่รับรองการปัดเศษแต่ละช่องของแบบยื่นทุกกรณี",
+    "วงเงินครอบครัวชนิดนับบุคคลเป็นวงเงินต่อคน ไม่ใช่วงเงินรวม; ต้องระบุจำนวนที่เข้าเงื่อนไข"
+  ]
+}

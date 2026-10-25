@@ -1,0 +1,27 @@
+[
+  {
+    "id": "example-health",
+    "categoryId": "health",
+    "title": "เบี้ยประกันสุขภาพ (ข้อมูลสมมติ)",
+    "amount": 1800000,
+    "date": "2026-10-01",
+    "eligibleAmount": null,
+    "provider": "บริษัทสมมติ",
+    "reference": "EXAMPLE-ONLY",
+    "note": "ตัวอย่างสำหรับเรียนรู้ ไม่ใช่ใบรับรองภาษีจริง",
+    "documentStatus": "partial",
+    "eligibility": "unchecked",
+    "checklist": [],
+    "attachments": [
+      {
+        "id": "example-receipt",
+        "path": "years/2569/documents/insurance/example-receipt.pdf",
+        "originalName": "หลักฐานสมมติ-ไม่ใช่ใบรับรองจริง.pdf",
+        "mime": "application/pdf",
+        "size": 686,
+        "hash": "f2bb80327dc9985d4da87647628912883627f93f24458758f55febb1db2840ef"
+      }
+    ],
+    "facts": {}
+  }
+]
