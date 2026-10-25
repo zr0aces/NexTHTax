@@ -87,9 +87,9 @@ describe("schema 3 plan compatibility and persistence", () => {
     expect(await listTree(target)).toEqual([]);
     const upgraded = await importMetadataIntoEmptyFolder(target, bytes, () => true);
     expect(upgraded.records).toEqual(old.records);
-    expect(upgraded.schemaVersion).toBe(3);
+    expect(upgraded.schemaVersion).toBe(4);
     expect(upgraded.years["2025"]?.taxInputs?.confirmedWorksheetDigest).toBeNull();
-    expect(upgradeManifest(old).schemaVersion).toBe(3);
+    expect(upgradeManifest(old).schemaVersion).toBe(4);
   });
   it("requires v2 ZIP upgrade consent and preserves frozen history on restore", async () => {
     const { root, old } = await v2Source();
@@ -105,7 +105,7 @@ describe("schema 3 plan compatibility and persistence", () => {
     await expect(restoreZipIntoEmptyFolder(target, zip, () => false)).rejects.toMatchObject({ code: "upgrade-required" });
     expect(await listTree(target)).toEqual([]);
     const restored = await restoreZipIntoEmptyFolder(target, zip, () => true);
-    expect(restored.session.manifest.schemaVersion).toBe(3);
+    expect(restored.session.manifest.schemaVersion).toBe(4);
     expect(restored.session.manifest.records).toEqual(old.records);
     expect(await sha256Hex((await readTree(target, ".recovery/prev-1-11111111-2222-4333-8444-555555555555.json"))!)).toBe(await sha256Hex(entries[".recovery/prev-1-11111111-2222-4333-8444-555555555555.json"]!));
     restored.session.close();
@@ -133,7 +133,7 @@ describe("schema 3 plan compatibility and persistence", () => {
     await opened.session.purgeRecord(manifest.records[0]!.id);
     expect(opened.session.manifest.years["2025"]!.plan).toMatchObject({ paid: true, evidenceRecordId: null, completionDigest: null });
     const current = decodeManifest((await readTree(root, "data.json"))!);
-    expect(current.schemaVersion).toBe(3);
+    expect(current.schemaVersion).toBe(4);
     opened.session.close();
   });
   it("preserves the plan when pinning rules but invalidates its completion context", async () => {

@@ -1042,3 +1042,32 @@ dialog.vault-modal::backdrop {
 @media print {
   .workspace-toolbar { display: none; }
 }
+
+/* Folder tabs: evidence categories are the primary working surface, not a tax dashboard. */
+.category-browser { margin: 24px 0; min-width: 0; }
+.category-browser-header { display: flex; align-items: start; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+.category-browser h2 { margin: 0; font-family: var(--font-display); }
+.category-browser-header p { margin: 6px 0; }
+.category-browser h3 { margin: 24px 0 10px; font-size: 16px; }
+.category-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 1fr)); gap: 12px; }
+.category-grid--types { grid-template-columns: 1fr; }
+.category-card { background: var(--card-bg); border: 1px solid var(--border-subtle); border-radius: 8px; min-width: 0; }
+.category-choice { display: block; width: 100%; text-align: left; padding: 14px 16px; background: var(--card-bg); border: 1px solid transparent; border-radius: 7px; overflow-wrap: anywhere; }
+.category-choice strong { display: block; font-size: 15px; color: var(--ink-dark); }
+.category-choice[aria-pressed="true"] { background: var(--orange-surface); border-color: var(--primary-orange-deep); box-shadow: inset 4px 0 var(--primary-orange-deep); }
+.category-choice:hover:not(:disabled) { background: var(--slate-surface); }
+.category-choice[aria-pressed="true"]:hover { background: var(--orange-surface); }
+.category-metrics { display: block; margin-top: 7px; color: var(--ink-muted); font-size: 12.5px; line-height: 1.65; font-variant-numeric: tabular-nums; }
+.category-metrics > span { display: block; }
+.category-types { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr)); gap: 8px; border-top: 1px solid var(--border-subtle); padding: 12px; }
+.category-types .category-choice { border-color: var(--border-subtle); padding: 10px 12px; }
+.category-types .category-choice[aria-pressed="true"] { border-color: var(--primary-orange-deep); }
+.category-selection { padding: 10px 14px; background: var(--orange-surface); border-left: 3px solid var(--primary-orange-deep); font-weight: 600; overflow-wrap: anywhere; }
+#docs-title:focus-visible { outline: 3px solid var(--primary-orange-deep); outline-offset: 3px; }
+@media (max-width: 700px) {
+  .category-types { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; padding: 8px; }
+  .category-types .category-choice { padding: 10px; }
+  .category-choice strong { font-size: 14px; }
+  .category-browser-header { align-items: stretch; }
+}
+@media print { .category-browser { display: none; } }

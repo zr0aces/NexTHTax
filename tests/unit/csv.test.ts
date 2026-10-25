@@ -72,7 +72,7 @@ describe("subtype CSV columns", () => {
     const body = lines(csv).slice(1).map((l) => l.split(","));
     expect(body.map((cells) => cells.slice(-2))).toEqual([
       ["fund_rmf", "RMF"],
-      ["", "ยังไม่ระบุประเภท"],
+      ["", "รอจัดประเภท"],
       ["insurance_health", "ประกันสุขภาพ"],
       ["", ""],
     ]);

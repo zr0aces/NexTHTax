@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { MAX_SAFE_SATANG } from "./money";
-import { SUBCATEGORY_IDS } from "./documents";
+import { SUBCATEGORY_IDS, LEGACY_SUBCATEGORY_IDS } from "./documents";
 import type { RecordEntry } from "./schema";
 import type { Answer, SalaryCaseInput } from "./tax";
 
@@ -47,7 +47,7 @@ export const taxInputsSchema = z.strictObject({
   confirmedWorksheetDigest: digest,
 });
 
-export const taxScenarioSchema = z.strictObject({
+const scenarioRoot = z.strictObject({
   id: uuid,
   label: text.min(1),
   budgetSatang: satang.nullable(),
@@ -60,10 +60,22 @@ export const taxScenarioSchema = z.strictObject({
     riskAccepted: answer,
   })).max(SUBCATEGORY_IDS.length),
   confirmedChoiceDigest: digest,
-}).superRefine((s, ctx) => {
+});
+function checkContributions(s: { contributions: { subcategory: string }[] }, ctx: z.RefinementCtx) {
   const ids = s.contributions.map((c) => c.subcategory);
   if (new Set(ids).size !== ids.length) ctx.addIssue({ code: "custom", message: "ประเภทในแผนซ้ำ" });
+}
+export const taxScenarioSchema = scenarioRoot.superRefine(checkContributions);
+export const legacyTaxInputsSchema = taxInputsSchema.extend({
+  deductions: z.array(taxInputsSchema.shape.deductions.element.extend({
+    subcategory: z.enum(LEGACY_SUBCATEGORY_IDS).nullable(),
+  })).max(2000),
 });
+export const legacyTaxScenarioSchema = scenarioRoot.extend({
+  contributions: z.array(scenarioRoot.shape.contributions.element.extend({
+    subcategory: z.enum(LEGACY_SUBCATEGORY_IDS),
+  })).max(LEGACY_SUBCATEGORY_IDS.length),
+}).superRefine(checkContributions);
 
 /** One selected health action. Status is derived from current evidence and its completion digest. */
 export const taxPlanSchema = z.strictObject({

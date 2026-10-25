@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { summarizeSubcategories, summarizeYear } from "../../src/domain/summary";
+import { summarizeSubcategories, summarizeYear, summarizeDocumentCategories, summarizeDocumentEvidence } from "../../src/domain/summary";
 import type { RecordEntry } from "../../src/domain/schema";
 
 const UUID = (n: number) => `00000000-0000-4000-8000-${n.toString().padStart(12, "0")}`;
@@ -72,7 +72,7 @@ describe("summarizeSubcategories", () => {
     expect(groups.map((g) => g.parent)).toEqual(["deduction_retirement", "deduction_insurance"]);
     const retirement = groups[0]!;
     expect(retirement.summary).toMatchObject({ ok: true, claimedTotal: 4000, evidenceTotal: 6000, reviewedClaimedTotal: 1000, unknownClaimCount: 1 });
-    expect(retirement.children.map((c) => c.subcategory)).toEqual(["fund_rmf", "fund_thai_esg", "fund_other", null]);
+    expect(retirement.children.map((c) => c.subcategory)).toEqual(["fund_rmf", "fund_thai_esg", "fund_thai_esgx", "fund_ssf", "fund_ltf", "fund_provident", "fund_gpf", "fund_nsf", "fund_other", null]);
     const childSum = retirement.children.reduce((n, c) => n + (c.summary.ok ? c.summary.claimedTotal : 0), 0);
     expect(childSum).toBe(4000);
     expect(retirement.children.find((c) => c.subcategory === "fund_other")?.summary).toMatchObject({ ok: true, claimedTotal: 0, unknownClaimCount: 0 });
@@ -95,5 +95,39 @@ describe("summarizeSubcategories", () => {
     ], 2026)[0]!;
     expect(group.summary).toEqual({ ok: false, error: "overflow" });
     expect(group.children.find((c) => c.subcategory === "fund_rmf")?.summary).toMatchObject({ ok: true, claimedTotal: big });
+  });
+});
+
+describe("document category evidence rollups", () => {
+  it("keeps unknown evidence distinct from zero and from unknown claims", () => {
+    expect(summarizeDocumentEvidence([rec(1, { evidenceAmountSatang: null, claimedAmountSatang: 100 }), rec(2, { evidenceAmountSatang: 0, claimedAmountSatang: null })])).toMatchObject({ documentCount: 2, knownEvidenceCount: 1, unknownEvidenceCount: 1, evidence: { ok: true, satang: 0 } });
+    expect(summarizeDocumentEvidence([])).toMatchObject({ documentCount: 0, knownEvidenceCount: 0, unknownEvidenceCount: 0 });
+  });
+  it("counts excluded documents but keeps their amounts and work out of the rollup; trash is not counted", () => {
+    const s = summarizeDocumentEvidence([
+      rec(1, { status: "waiting-document", evidenceAmountSatang: 100 }),
+      rec(2, { status: "waiting-review", evidenceAmountSatang: null }),
+      rec(3, { status: "excluded", evidenceAmountSatang: 900 }),
+      rec(4, { evidenceAmountSatang: 9000, trashedAt: "2026-01-01T00:00:00.000Z" }),
+    ]);
+    expect(s).toMatchObject({ documentCount: 3, excludedCount: 1, waitingDocumentCount: 1, waitingReviewCount: 1, unknownEvidenceCount: 1, evidence: { ok: true, satang: 100 } });
+  });
+  it("partitions all 15 categories by year and parent without double counting shared attachments", () => {
+    const records = [
+      rec(1, { category: "deduction_retirement", subcategory: "fund_thai_esgx", evidenceAmountSatang: 100, attachmentIds: [UUID(9)] }),
+      rec(2, { category: "deduction_retirement", subcategory: null, evidenceAmountSatang: 200, attachmentIds: [UUID(9)] }),
+      rec(3, { taxYear: 2025, category: "deduction_retirement", subcategory: "fund_thai_esgx", evidenceAmountSatang: 999 }),
+    ];
+    const all = summarizeDocumentCategories(records, 2026);
+    expect(all).toHaveLength(15);
+    const funds = all.find((c) => c.id === "deduction_retirement")!;
+    expect(funds.children).toHaveLength(10);
+    expect(funds.summary).toMatchObject({ documentCount: 2, evidence: { ok: true, satang: 300 } });
+    expect(funds.children.reduce((n, c) => n + (c.summary.evidence.ok ? c.summary.evidence.satang : 0), 0)).toBe(300);
+  });
+  it("retains document counts when evidence overflows, and does not let claim/withholding overflow hide evidence", () => {
+    const s = summarizeDocumentEvidence([rec(1, { evidenceAmountSatang: 1, claimedAmountSatang: Number.MAX_SAFE_INTEGER, withheldAmountSatang: Number.MAX_SAFE_INTEGER }), rec(2, { evidenceAmountSatang: 2, claimedAmountSatang: Number.MAX_SAFE_INTEGER, withheldAmountSatang: Number.MAX_SAFE_INTEGER })]);
+    expect(s).toMatchObject({ documentCount: 2, evidence: { ok: true, satang: 3 } });
+    expect(summarizeDocumentEvidence([rec(1, { evidenceAmountSatang: Number.MAX_SAFE_INTEGER }), rec(2, { evidenceAmountSatang: 1 })])).toMatchObject({ documentCount: 2, evidence: { ok: false, error: "overflow" } });
   });
 });

@@ -83,7 +83,7 @@ describe("upgradeManifestV1 (pure)", () => {
     if (legacy.schemaVersion !== 1) throw new Error("setup");
     const at = "2026-10-25T01:00:00.000Z";
     const up = upgradeManifestV1(legacy, at);
-    expect(up).toMatchObject({ schemaVersion: 3, revision: 8, updatedAt: at, workspaceId: WS, createdAt: T });
+    expect(up).toMatchObject({ schemaVersion: 4, revision: 8, updatedAt: at, workspaceId: WS, createdAt: T });
     expect(up.records.map((r) => r.subcategory)).toEqual([null, null]);
     for (const [i, r] of up.records.entries()) {
       const { subcategory: _s, ...rest } = r;
@@ -109,7 +109,7 @@ describe("migrateWorkspaceIntoEmptyFolder", () => {
     const opened = await openWorkspace(target);
     if (!("session" in opened)) throw new Error("target not opened");
     expect(opened.missingAttachments).toEqual([]);
-    expect(opened.session.manifest.schemaVersion).toBe(3);
+    expect(opened.session.manifest.schemaVersion).toBe(4);
     expect(opened.session.manifest.records.map((r) => [r.id, r.subcategory, r.trashedAt === null])).toEqual([
       [REC_A, null, true],
       [REC_B, null, false],

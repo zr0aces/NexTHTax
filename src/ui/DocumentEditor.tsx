@@ -9,6 +9,8 @@ export const AUTOSAVE_MS = 500;
 
 interface Props {
   supportsSubcategories?: boolean;
+  canStoreSubcategory?: (subcategory: SubcategoryId | null) => boolean;
+  onUnsupportedSubcategory?: () => void;
   record: RecordEntry;
   attachments: Attachment[];
   missingNames: string[];
@@ -87,7 +89,7 @@ export function parseForm(f: Form, attachmentIds: string[]): ParsedForm {
 }
 
 /** One record in edit. Parent keys this component by record ID so drafts never carry across records. */
-export function DocumentEditor({ record, attachments, missingNames, onSave, onUnsavedChange, onAddFile, onLink, onUnlink, onPreview, supportsSubcategories = true }: Props) {
+export function DocumentEditor({ record, attachments, missingNames, onSave, onUnsavedChange, onAddFile, onLink, onUnlink, onPreview, supportsSubcategories = true, canStoreSubcategory = () => true, onUnsupportedSubcategory }: Props) {
   const [form, setForm] = useState<Form>(() => toForm(record));
   const [dirty, setDirty] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -200,9 +202,13 @@ export function DocumentEditor({ record, attachments, missingNames, onSave, onUn
         {supportsSubcategories && subcategoriesFor(form.category).length > 0 && (
           <label>
             ประเภทเอกสารย่อย
-            <select value={form.subcategory ?? ""} onChange={(e) => update("subcategory", (e.target.value || null) as SubcategoryId | null)} aria-invalid={!!errors.subcategory}>
-              <option value="">ยังไม่ระบุประเภท</option>
-              {subcategoriesFor(form.category).map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+            <select value={form.subcategory ?? ""} onChange={(e) => {
+                const next = (e.target.value || null) as SubcategoryId | null;
+                if (!canStoreSubcategory(next)) { onUnsupportedSubcategory?.(); return; }
+                update("subcategory", next);
+              }} aria-invalid={!!errors.subcategory}>
+              <option value="">รอจัดประเภท</option>
+              {subcategoriesFor(form.category).map((s) => <option key={s.id} value={s.id}>{s.label}{canStoreSubcategory(s.id) ? "" : " (ต้องสร้างสำเนา)"}</option>)}
             </select>
             {errors.subcategory && <span className="error">{errors.subcategory}</span>}
             <span className="muted">ใช้จัดเอกสาร ไม่ใช่การรับรองสิทธิลดหย่อน</span>

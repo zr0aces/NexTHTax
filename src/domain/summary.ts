@@ -69,3 +69,37 @@ export function summarizeSubcategories(records: readonly RecordEntry[], taxYear:
     };
   });
 }
+
+/** Evidence-only rollup: unrelated claim/withholding overflow cannot hide document counts or evidence. */
+export function summarizeDocumentEvidence(records: readonly RecordEntry[]) {
+  const live = records.filter((r) => r.trashedAt === null);
+  const counted = live.filter((r) => r.status !== "excluded");
+  const known = counted.flatMap((r) => r.evidenceAmountSatang === null ? [] : [r.evidenceAmountSatang]);
+  return {
+    documentCount: live.length,
+    excludedCount: live.length - counted.length,
+    knownEvidenceCount: known.length,
+    unknownEvidenceCount: counted.length - known.length,
+    waitingDocumentCount: counted.filter((r) => r.status === "waiting-document").length,
+    waitingReviewCount: counted.filter((r) => r.status === "waiting-review").length,
+    evidence: sumSatang(known),
+  };
+}
+
+export type DocumentEvidenceSummary = ReturnType<typeof summarizeDocumentEvidence>;
+
+export function summarizeDocumentCategories(records: readonly RecordEntry[], taxYear: number) {
+  const ofYear = records.filter((r) => r.taxYear === taxYear);
+  return CATEGORIES.map((category) => {
+    const selected = ofYear.filter((r) => r.category === category.id);
+    const children = subcategoriesFor(category.id);
+    return {
+      ...category,
+      summary: summarizeDocumentEvidence(selected),
+      children: children.length === 0 ? [] : [...children.map((c) => c.id), null].map((subcategory) => ({
+        subcategory,
+        summary: summarizeDocumentEvidence(selected.filter((r) => r.subcategory === subcategory)),
+      })),
+    };
+  });
+}

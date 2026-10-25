@@ -1,5 +1,8 @@
+import { useState } from "react";
+import { DocumentCategories } from "../../src/ui/DocumentCategories";
+import { documentScopeKey, type DocumentScope } from "../../src/domain/documents";
 import { describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { DocumentList } from "../../src/ui/DocumentList";
 import type { RecordEntry } from "../../src/domain/schema";
 
@@ -19,53 +22,70 @@ const records = [
 ];
 
 function renderList(list = records) {
-  return render(
-    <DocumentList records={list} selectedId={null} onSelect={vi.fn()} onAdd={vi.fn()} onTrash={vi.fn()} onRestore={vi.fn()} onPurge={vi.fn()} />,
-  );
+  function Harness() {
+    const [scope, setScope] = useState<DocumentScope>(null);
+    return <><DocumentCategories records={list} taxYear={2026} scope={scope} onSelect={setScope} />
+      <DocumentList key={documentScopeKey(scope)} scope={scope} records={list} selectedId={null} onSelect={vi.fn()} onAdd={vi.fn()} onTrash={vi.fn()} onRestore={vi.fn()} onPurge={vi.fn()} /></>;
+  }
+  return render(<Harness />);
 }
 
-const shownTitles = () => screen.queryAllByRole("button").map((b) => b.textContent ?? "").filter((t) => t.includes("·"));
-const categorySelect = () => screen.getByLabelText(/^หมวด/) as HTMLSelectElement;
-const subtypeSelect = () => screen.queryByLabelText(/ประเภทเอกสารย่อย/) as HTMLSelectElement | null;
+const shownTitles = () => within(screen.getByRole("region", { name: /รายการเอกสาร/ })).queryAllByRole("button").map((b) => b.textContent ?? "").filter((t) => t.includes("·"));
+const selectType = (name: string) => fireEvent.click(screen.getByRole("button", { name: new RegExp(`^เลือกประเภท .+ / ${name}$`) }));
 
-describe("DocumentList subtype search and filter", () => {
+describe("category-first document search and filter", () => {
+  it("permits browsing but disables every mutation in read-only mode", () => {
+    const onAdd = vi.fn(), onSelect = vi.fn(), onTrash = vi.fn(), onRestore = vi.fn(), onPurge = vi.fn();
+    render(<DocumentList records={[records[0]!, { ...records[1]!, trashedAt: "2026-01-01T00:00:00.000Z" }]} selectedId={null} canEdit={false} onSelect={onSelect} onAdd={onAdd} onTrash={onTrash} onRestore={onRestore} onPurge={onPurge} />);
+    expect(screen.getByRole("button", { name: "+ เพิ่มรายการ" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "ย้ายไปถังขยะ" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: /ใบยืนยันการซื้อ/ }));
+    expect(onSelect).toHaveBeenCalledWith(records[0]!.id);
+    fireEvent.click(screen.getByRole("button", { name: "ดูถังขยะ" }));
+    expect(screen.getByRole("button", { name: "กู้คืนจากถังขยะ" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "ลบถาวร" })).toBeDisabled();
+    for (const action of [onAdd, onTrash, onRestore, onPurge]) expect(action).not.toHaveBeenCalled();
+  });
   it("finds an RMF record through its subtype label even when the title lacks it", () => {
     renderList();
     fireEvent.change(screen.getByRole("searchbox"), { target: { value: "rmf" } });
     expect(shownTitles()).toHaveLength(1);
     expect(shownTitles()[0]).toContain("ใบยืนยันการซื้อ");
   });
-  it("shows the subtype filter only for the two broad parents", () => {
+  it("shows every category and fund type directly, including empty types, without dropdown navigation", () => {
     renderList();
-    expect(subtypeSelect()).toBeNull();
-    fireEvent.change(categorySelect(), { target: { value: "deduction_insurance" } });
-    expect(subtypeSelect()).not.toBeNull();
-    fireEvent.change(categorySelect(), { target: { value: "income_salary" } });
-    expect(subtypeSelect()).toBeNull();
+    expect(screen.getAllByRole("button", { name: /^เลือกหมวด / })).toHaveLength(15);
+    for (const label of ["RMF", "ThaiESG", "ThaiESGX", "SSF", "LTF", "กบข.", "กอช."]) {
+      expect(screen.getByRole("button", { name: new RegExp(`^เลือกประเภท .+ / ${label}$`) })).toBeVisible();
+    }
+    selectType("ThaiESGX");
+    expect(shownTitles()).toHaveLength(0);
+    expect(screen.getByRole("button", { name: "เพิ่มเอกสารในหมวดนี้" })).toBeEnabled();
   });
-  it("keeps unclassified distinct from the explicit other option of each parent", () => {
+  it("keeps unclassified separate from the explicit other option of each parent", () => {
     renderList();
-    fireEvent.change(categorySelect(), { target: { value: "deduction_retirement" } });
-    fireEvent.change(subtypeSelect()!, { target: { value: "unclassified" } });
+    fireEvent.click(screen.getByRole("button", { name: "เลือกประเภท กองทุนและเงินออมเพื่อเกษียณ / รอจัดประเภท" }));
     expect(shownTitles()).toEqual([expect.stringContaining("ยังไม่จัดประเภท")]);
-    fireEvent.change(subtypeSelect()!, { target: { value: "fund_other" } });
+    selectType("กองทุนอื่น ๆ");
     expect(shownTitles()).toEqual([expect.stringContaining("ใบยืนยัน ทั่วไป")]);
   });
-  it("resets a stale subtype filter when the parent changes or all categories is chosen", () => {
-    renderList();
-    fireEvent.change(categorySelect(), { target: { value: "deduction_retirement" } });
-    fireEvent.change(subtypeSelect()!, { target: { value: "fund_rmf" } });
+  it("resets search/status/trash on a different scope so a stale filter cannot hide its documents", () => {
+    renderList(); selectType("RMF");
     expect(shownTitles()).toHaveLength(1);
-    fireEvent.change(categorySelect(), { target: { value: "deduction_insurance" } });
-    expect(subtypeSelect()!.value).toBe("");
+    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "missing" } });
+    fireEvent.change(screen.getByLabelText("สถานะ"), { target: { value: "reviewed" } });
+    fireEvent.click(screen.getByRole("button", { name: "ดูถังขยะ" }));
+    fireEvent.click(screen.getByRole("button", { name: "เลือกหมวด เบี้ยประกัน" }));
+    expect(screen.getByRole("searchbox")).toHaveValue("");
+    expect(screen.getByLabelText("สถานะ")).toHaveValue("");
     expect(shownTitles()).toEqual([expect.stringContaining("กรมธรรม์สุขภาพ")]);
-    fireEvent.change(categorySelect(), { target: { value: "" } });
-    expect(subtypeSelect()).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "แสดงทุกหมวด" }));
     expect(shownTitles()).toHaveLength(records.length);
   });
-  it("labels subtype only for applicable parents in the list row", () => {
+  it("labels unclassified only for parents that support subtypes and keeps evidence as the primary amount", () => {
     renderList();
-    expect(shownTitles().find((t) => t.includes("เงินเดือนเดือนแรก"))).not.toContain("ยังไม่ระบุประเภท");
-    expect(shownTitles().find((t) => t.includes("ยังไม่จัดประเภท"))).toContain("ยังไม่ระบุประเภท");
+    expect(shownTitles().find((t) => t.includes("เงินเดือนเดือนแรก"))).not.toContain("รอจัดประเภท");
+    expect(shownTitles().find((t) => t.includes("ยังไม่จัดประเภท"))).toContain("รอจัดประเภท");
+    expect(shownTitles()[0]).toContain("ยังไม่ระบุยอด");
   });
 });

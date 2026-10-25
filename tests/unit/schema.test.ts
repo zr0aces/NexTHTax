@@ -119,13 +119,13 @@ describe("versioned decoding", () => {
   it("rejects a v1 manifest that carries the v2 subcategory field", () => {
     expect(codeOf(() => decodeManifest(bytes(v1({ records: [REC] }))))).toBe("invalid");
   });
-  it("reports version 4 as newer-schema and rejects non-integer or missing versions", () => {
-    expect(codeOf(() => decodeManifest(bytes({ ...v2(), schemaVersion: 4 })))).toBe("newer-schema");
+  it("reports version 5 as newer-schema and rejects non-integer or missing versions", () => {
+    expect(codeOf(() => decodeManifest(bytes({ ...v2(), schemaVersion: 5 })))).toBe("newer-schema");
     expect(codeOf(() => decodeManifest(bytes({ ...v2(), schemaVersion: "2" })))).toBe("invalid");
     expect(codeOf(() => decodeManifest(bytes({ ...v2(), schemaVersion: 0 })))).toBe("invalid");
   });
   it("decodeCurrentManifest accepts current and reports upgrade-required for v1", () => {
-    expect(decodeCurrentManifest(bytes(v2())).schemaVersion).toBe(3);
+    expect(decodeCurrentManifest(bytes(v2())).schemaVersion).toBe(4);
     expect(codeOf(() => decodeCurrentManifest(bytes(v1())))).toBe("upgrade-required");
   });
 });

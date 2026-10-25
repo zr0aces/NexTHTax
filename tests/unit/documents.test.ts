@@ -41,12 +41,12 @@ describe("invalidatesReview", () => {
 });
 
 describe("subcategory registry", () => {
-  it("has exactly the seven stable IDs under the two broad parents", () => {
+  it("has thirteen stable IDs under the two broad parents", () => {
     expect(SUBCATEGORY_IDS).toEqual([
-      "fund_rmf", "fund_thai_esg", "fund_other",
+      "fund_rmf", "fund_thai_esg", "fund_thai_esgx", "fund_ssf", "fund_ltf", "fund_provident", "fund_gpf", "fund_nsf", "fund_other",
       "insurance_life", "insurance_annuity", "insurance_health", "insurance_other",
     ]);
-    expect(subcategoriesFor("deduction_retirement").map((s) => s.id)).toEqual(["fund_rmf", "fund_thai_esg", "fund_other"]);
+    expect(subcategoriesFor("deduction_retirement").map((s) => s.id)).toEqual(["fund_rmf", "fund_thai_esg", "fund_thai_esgx", "fund_ssf", "fund_ltf", "fund_provident", "fund_gpf", "fund_nsf", "fund_other"]);
     expect(subcategoriesFor("deduction_insurance").map((s) => s.id)).toEqual(["insurance_life", "insurance_annuity", "insurance_health", "insurance_other"]);
     expect(subcategoriesFor("income_salary")).toEqual([]);
   });
@@ -55,7 +55,7 @@ describe("subcategory registry", () => {
     expect(CATEGORY_IDS).not.toEqual(expect.arrayContaining(["fund_rmf", "insurance_life"]));
   });
   it("labels null as unclassified and keeps the two other-options distinct", () => {
-    expect(subcategoryLabel(null)).toBe("ยังไม่ระบุประเภท");
+    expect(subcategoryLabel(null)).toBe("รอจัดประเภท");
     expect(subcategoryLabel("fund_other")).toBe("กองทุนอื่น ๆ");
     expect(subcategoryLabel("insurance_other")).toBe("ประกันอื่น ๆ");
     expect(subcategoryLabel("fund_other")).not.toBe(subcategoryLabel("insurance_other"));

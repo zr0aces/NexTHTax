@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { RecordDraft, ReviewStatus } from "./domain/documents";
-import { invalidatesReview } from "./domain/documents";
+import { invalidatesReview, CATEGORY_IDS, categoryLabel, subcategoryLabel, isSubcategoryApplicable, matchesDocumentScope, documentScopeKey, type DocumentScope, type CategoryId } from "./domain/documents";
 import { bangkokCalendarYear, bangkokDateString } from "./domain/years";
 import { isSupportedTaxYear } from "./domain/years";
-import { SCHEMA_VERSION, type Manifest, type RecordEntry, type Attachment, type PriorManifest } from "./domain/schema";
+import { SCHEMA_VERSION, canStoreSubcategory, type Manifest, type RecordEntry, type Attachment, type PriorManifest } from "./domain/schema";
 import { type AnyRuleBundle, bundlePath, isTrustedMatch } from "./domain/rules";
 import { catalogEntryFor, fetchBundle, fetchCatalog, loadPinnedBundle } from "./storage/pinnedRules";
 import type { Catalog } from "./domain/rules";
@@ -21,6 +21,7 @@ import { migrateWorkspaceIntoEmptyFolder } from "./storage/migration";
 import { type DirHandleLike, StorageError } from "./storage/fs";
 import { WorkspaceScreen } from "./ui/WorkspaceScreen";
 import { YearOverview } from "./ui/YearOverview";
+import { DocumentCategories } from "./ui/DocumentCategories";
 import { DocumentList } from "./ui/DocumentList";
 import { TaxWorksheet } from "./ui/TaxWorksheet";
 import type { TaxInputs, TaxPlan, TaxScenario } from "./domain/taxInputs";
@@ -70,12 +71,14 @@ export function App() {
   const [pending, setPending] = useState<string[]>([]);
   const [taxYear, setTaxYear] = useState<number>(() => bangkokCalendarYear());
   const [extraYears, setExtraYears] = useState<number[]>([]);
+  const [documentScope, setDocumentScope] = useState<DocumentScope>(null);
+  const [listEpoch, setListEpoch] = useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [saveState, setSaveState] = useState<SaveState>("saved");
   const [dirty, setDirty] = useState(false);
   const dirtyRef = useRef(false);
   const [notice, setNotice] = useState<string | null>(null);
-  const [tab, setTab] = useState<Tab>("worksheet");
+  const [tab, setTab] = useState<Tab>("documents");
   const [isAddYearOpen, setIsAddYearOpen] = useState(false);
   const [newYearInput, setNewYearInput] = useState("");
   const [purgeCandidateId, setPurgeCandidateId] = useState<string | null>(null);
@@ -179,23 +182,21 @@ export function App() {
     setManifest(result.session.manifest);
     setMissing(result.missingAttachments);
     setPending(result.pendingCandidates);
-    const existingRecord = result.session.storageSchemaVersion < SCHEMA_VERSION
-      ? result.session.manifest.records.filter((r) => r.trashedAt === null).sort((a, b) => b.taxYear - a.taxYear)[0]
-      : undefined;
+    const existingRecord = result.session.manifest.records.filter((r) => r.trashedAt === null).sort((a, b) => b.taxYear - a.taxYear)[0];
+    setDocumentScope(null);
+    setListEpoch((n) => n + 1);
     setSelectedId(existingRecord?.id ?? null);
     setSaveState("saved");
     setSetupRoot(null);
     setUpgrade(null);
     setPreview(null);
-    setTab(existingRecord || result.session.storageSchemaVersion === 1 ? "documents" : "worksheet");
+    setTab("documents");
     setExtraYears([]);
     const yearsWithData = Object.keys(result.session.manifest.years).map(Number).sort((a, b) => b - a);
-    const existingWorksheetYear = result.session.storageSchemaVersion < SCHEMA_VERSION
-      ? yearsWithData.find((year) => {
-        const saved = result.session.manifest.years[String(year)]!;
-        return saved.taxInputs !== null || saved.scenarios.length > 0;
-      })
-      : undefined;
+    const existingWorksheetYear = yearsWithData.find((year) => {
+      const saved = result.session.manifest.years[String(year)]!;
+      return saved.taxInputs !== null || saved.scenarios.length > 0;
+    });
     setTaxYear(existingRecord?.taxYear ?? existingWorksheetYear ?? yearsWithData[0] ?? bangkokCalendarYear());
     const warnings = [];
     if (result.session.readOnly) warnings.push("โฟลเดอร์นี้เปิดแบบอ่านอย่างเดียว เพราะมีหน้าต่างอื่นแก้ไขอยู่");
@@ -362,13 +363,27 @@ export function App() {
     });
     const saved = next.records.find((x) => x.id === id);
     if (!saved) throw new StorageError("invalid", "ไม่พบรายการหลังบันทึก");
-    if (saved.taxYear !== taxYear) setTaxYear(saved.taxYear);
+    if (saved.taxYear !== taxYear) {
+      setTaxYear(saved.taxYear);
+      setDocumentScope(null);
+      setListEpoch((n) => n + 1);
+    } else if (!matchesDocumentScope(saved, documentScope)) {
+      setDocumentScope({ category: saved.category as CategoryId, subcategory: saved.subcategory });
+    }
     return saved;
   };
 
   const addRecord = () =>
     run(async () => {
       if (!confirmLeave()) return;
+      const category = documentScope?.category ?? "other";
+      const subcategory = documentScope?.subcategory ?? null;
+      if (!CATEGORY_IDS.includes(category) || !isSubcategoryApplicable(category, subcategory)) throw new StorageError("invalid", "หมวดหรือประเภทย่อยไม่ถูกต้อง");
+      if (!session || !canStoreSubcategory(session.storageSchemaVersion, subcategory)) {
+        setNotice("รูปแบบเดิมยังเก็บประเภทนี้ไม่ได้ กรุณาสร้างสำเนาสำหรับคุณสมบัติใหม่ก่อน ต้นฉบับจะไม่เปลี่ยน");
+        requestFeatureUpgrade();
+        return;
+      }
       const id = crypto.randomUUID();
       const now = nowIso();
       await commit((m) => {
@@ -377,10 +392,10 @@ export function App() {
         m.records.push({
           id,
           taxYear,
-          category: "other",
-          subcategory: null,
+          category,
+          subcategory,
           date: bangkokDateString(),
-          title: "รายการใหม่",
+          title: `รอเอกสาร ${subcategory === null ? categoryLabel(category) : subcategoryLabel(subcategory)}`,
           issuer: "",
           notes: "",
           evidenceAmountSatang: null,
@@ -394,7 +409,28 @@ export function App() {
         });
       });
       setSelectedId(id);
+      setPreview(null);
+      setListEpoch((n) => n + 1);
     });
+
+  const showDocumentList = () => {
+    requestAnimationFrame(() => {
+      const list = document.getElementById("document-list");
+      list?.scrollIntoView({ block: "start", behavior: "auto" });
+      list?.querySelector<HTMLElement>("h2")?.focus({ preventScroll: true });
+    });
+  };
+
+  const selectDocumentScope = (next: DocumentScope) => {
+    if (documentScopeKey(next) === documentScopeKey(documentScope)) { showDocumentList(); return; }
+    if (selected && !matchesDocumentScope(selected, next)) {
+      if (!confirmLeave()) return;
+      setSelectedId(null);
+      setPreview(null);
+    }
+    setDocumentScope(next);
+    showDocumentList();
+  };
 
   const selectRecord = (id: string) => {
     if (id === selectedId) return;
@@ -406,6 +442,9 @@ export function App() {
     if (year === taxYear) return;
     if (!confirmLeave()) return;
     setSelectedId(null);
+    setPreview(null);
+    setDocumentScope(null);
+    setListEpoch((n) => n + 1);
     setTaxYear(year);
   };
 
@@ -418,6 +457,9 @@ export function App() {
     if (!confirmLeave()) return;
     setExtraYears((ys) => [...ys, year]);
     setSelectedId(null);
+    setPreview(null);
+    setDocumentScope(null);
+    setListEpoch((n) => n + 1);
     setTaxYear(year);
   };
 
@@ -636,7 +678,7 @@ export function App() {
           {session.storageSchemaVersion < SCHEMA_VERSION && (
             <section className="notice" aria-label="การแก้ไขข้อมูลรูปแบบเดิม">
               <p>เปิดข้อมูลเดิมแล้ว แก้ไขและบันทึกในรูปแบบเดิม (schema {session.storageSchemaVersion}) ได้โดยไม่ต้องสร้างสำเนา
-                {session.storageSchemaVersion === 1 ? " · ประเภทย่อยและใบคำนวณภาษีต้องใช้สำเนารูปแบบใหม่" : " · การบันทึกแผนต้องใช้สำเนารูปแบบใหม่"}
+                {session.storageSchemaVersion === 1 ? " · ประเภทย่อยและใบคำนวณภาษีต้องใช้สำเนารูปแบบใหม่" : session.storageSchemaVersion === 2 ? " · แผนและประเภทกองทุนใหม่ต้องใช้สำเนารูปแบบใหม่" : " · ประเภทกองทุนใหม่ต้องใช้สำเนารูปแบบใหม่"}
               </p>
               <button type="button" disabled={busy || dirty || saveState !== "saved"} onClick={requestFeatureUpgrade}>สร้างสำเนาสำหรับคุณสมบัติใหม่</button>
             </section>
@@ -672,7 +714,7 @@ export function App() {
               bundle={pinned?.bundle ?? null}
               ruleDigest={pinned?.digest ?? null}
               disabled={session.readOnly || busy}
-              planDisabled={session.storageSchemaVersion < SCHEMA_VERSION}
+              planDisabled={session.storageSchemaVersion < 3}
               onUnsavedChange={handleUnsaved}
               onSavePlan={savePlan}
               onVerifyPlanEvidence={verifyPlanEvidence}
@@ -682,13 +724,17 @@ export function App() {
           )}
           {tab === "documents" && (
             <>
+              <DocumentCategories records={yearRecords} taxYear={taxYear} scope={documentScope} onSelect={selectDocumentScope} disabled={busy} />
               <details className="task-details">
                 <summary>สรุปเอกสารและความคืบหน้าปี {taxYear}</summary>
                 <YearOverview manifest={manifest} taxYear={taxYear} pinned={pinned?.bundle ?? null} />
               </details>
                 <div className="grid">
                   <DocumentList
+                    key={`${manifest.workspaceId}-${taxYear}-${documentScopeKey(documentScope)}-${listEpoch}`}
                     records={yearRecords}
+                    scope={documentScope}
+                    canEdit={!session.readOnly && !busy}
                     selectedId={selectedId}
                     onSelect={selectRecord}
                     onAdd={() => void addRecord()}
@@ -702,6 +748,8 @@ export function App() {
                         <DocumentEditor
                           key={selected.id}
                           supportsSubcategories={session.storageSchemaVersion !== 1}
+                          canStoreSubcategory={(subcategory) => canStoreSubcategory(session.storageSchemaVersion, subcategory)}
+                          onUnsupportedSubcategory={requestFeatureUpgrade}
                           record={selected}
                           attachments={allAttachments}
                           missingNames={missingForRecord(selected)}

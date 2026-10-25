@@ -11,7 +11,9 @@ test.beforeEach(async ({ page }, testInfo) => {
   await page.getByRole("button", { name: "เลือกโฟลเดอร์ว่างเพื่อเริ่มใหม่" }).click();
   await page.getByLabel(/ชื่อผู้เสียภาษี/).fill("ผู้ทดสอบ");
   await page.getByRole("button", { name: "สร้างข้อมูลในโฟลเดอร์นี้" }).click();
-  await expect(page.getByRole("heading", { name: /คำนวณและวางแผนภาษี/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /เลือกหมวดเอกสาร/ })).toBeVisible();
+  // Calculation is a secondary task, reached explicitly from the document-first home.
+  await page.getByRole("button", { name: "คำนวณและวางแผน", exact: true }).click();
 });
 
 test("shows one task at a time with shared year selection and accessible tools", async ({ page }) => {
@@ -60,6 +62,8 @@ test("saves and reopens tax inputs and fits a narrow screen", async ({ page }) =
   await expect(page.getByLabel(/เงินเดือนรวมทั้งปี/)).toHaveValue("600,000.00");
   await page.reload();
   await page.getByRole("button", { name: "เปิดโฟลเดอร์ข้อมูลที่มีอยู่" }).click();
+  await expect(page.getByRole("heading", { name: /เลือกหมวดเอกสาร/ })).toBeVisible();
+  await page.getByRole("button", { name: "คำนวณและวางแผน", exact: true }).click();
   await expect(page.getByLabel(/เงินเดือนรวมทั้งปี/)).toHaveValue("600,000.00");
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.screenshot({ path: "test-results/simple-workflow-mobile.png", fullPage: true });
@@ -83,6 +87,8 @@ test("saves one plan, protects its draft, and keeps years separate on reopen", a
   await expect(page.getByLabel(/เบี้ยสุขภาพที่จะจ่ายเพิ่มจากข้อมูลภาษี/)).toHaveValue("10,000.00");
   await page.reload();
   await page.getByRole("button", { name: "เปิดโฟลเดอร์ข้อมูลที่มีอยู่" }).click();
+  await expect(page.getByRole("heading", { name: /เลือกหมวดเอกสาร/ })).toBeVisible();
+  await page.getByRole("button", { name: "คำนวณและวางแผน", exact: true }).click();
   await expect(page.getByLabel(/เบี้ยสุขภาพที่จะจ่ายเพิ่มจากข้อมูลภาษี/)).toHaveValue("10,000.00");
   await page.getByLabel(/เบี้ยสุขภาพที่จะจ่ายเพิ่มจากข้อมูลภาษี/).fill("9000");
   await page.getByRole("button", { name: "บันทึกแผน", exact: true }).click();
@@ -128,6 +134,8 @@ test("confirms a paid action with verified evidence, then invalidates it when ev
   await expect(page.getByText(/จากรายการที่ทำครบแล้ว: ยังประเมินไม่ได้/)).toBeVisible();
   await page.reload();
   await page.getByRole("button", { name: "เปิดโฟลเดอร์ข้อมูลที่มีอยู่" }).click();
+  await expect(page.getByRole("heading", { name: /เลือกหมวดเอกสาร/ })).toBeVisible();
+  await page.getByRole("button", { name: "คำนวณและวางแผน", exact: true }).click();
   await expect(page.getByText(/สถานะแผน: ทำรายการครบแล้ว · ความคืบหน้า 1\/1/)).toBeVisible();
   await page.getByRole("button", { name: "เอกสาร", exact: true }).click();
   await page.getByRole("button", { name: /หลักฐานตามแผน/ }).click();
