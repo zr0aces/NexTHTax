@@ -15,6 +15,18 @@ export const isFixedAllowanceId = (id: string): id is FixedAllowanceId => (FIXED
 export const isCountedFamily = (id: string) => countIds.has(id);
 export const quantityKindOf = (id: string): QuantityKind => countIds.has(id) ? "count" : "confirm";
 export const maxQualifyingCount = (ruleId: string, childCount: number) => ruleId === "parents" ? 4 : ruleId === "child-additional" ? childCount : 20;
+/** The only copy of the allowance formula: cap × count for count kinds, one cap for confirm kinds. */
+export const fixedAllowanceTotal = (ruleId: string, cap: number, quantity: number) => quantityKindOf(ruleId) === "count" ? cap * quantity : cap;
+/** Base child count that caps additional children. Only a confirmed base counts, as the engine's countedChildCount does. */
+export const additionalCapBase = (baseConfirmed: boolean, baseCount: number | null | undefined) => baseConfirmed ? (baseCount ?? 0) : 0;
+/** A count the engine accepts for a counted family. Missing or out-of-range counts stay pending. */
+export function countIsUsable(ruleId: string, count: number | undefined, childCount: number): count is number {
+  return count !== undefined && count <= maxQualifyingCount(ruleId, childCount);
+}
+/** The only records the engine counts: confirmed, dated inside the tax year, and active on that date. */
+export const isCountableRecord = (record: TaxRecord, rule: TaxRule, year: number) =>
+  record.eligibility === "confirmed" && validTaxDate(record.date, year) && isActiveOn(rule, record.date);
+const sameSet = (a: string[], b: string[]) => { const x = new Set(a), y = new Set(b); return x.size === y.size && [...x].every(item => y.has(item)); };
 export const annualReferenceDate = (year: number) => `${year - 543}-12-31`;
 export const yearStartDate = (year: number) => `${year - 543}-01-01`;
 
@@ -62,31 +74,34 @@ export function potentialFor(record: TaxRecord, rule: TaxRule | undefined, state
   if (!rule || !isAnnualCompatible(rule, rule.taxYear)) return null;
   if (state === "ineligible") return 0;
   if (state === "needs-count") return null;
-  if (quantityKindOf(record.categoryId) === "confirm") return rule.cap ?? 0;
-  const quantity = record.facts.qualifyingCount;
-  return quantity === undefined ? null : quantity * (rule.cap ?? 0);
+  const quantity = quantityKindOf(record.categoryId) === "count" ? record.facts.qualifyingCount : 1;
+  return quantity === undefined ? null : fixedAllowanceTotal(record.categoryId, rule.cap ?? 0, quantity);
 }
 
-/** Classifies each record of fixed categories exactly like the engine's validRows/duplicate rules. */
+/** Amount the engine counts for one record in a given state. Zero unless the record is counted. */
+export function countedAmountOf(record: TaxRecord, rule: TaxRule | undefined, state: RecordState | undefined): number {
+  if (!rule || state !== "counted") return 0;
+  return fixedAllowanceTotal(record.categoryId, rule.cap ?? 0, record.facts.qualifyingCount ?? 0);
+}
+
+/** Classifies each record of fixed categories with the same predicates the engine uses. */
 export function classifyFixedRecords(data: TaxYearData): Map<string, RecordState> {
   const year = data.rules.taxYear;
   const childCount = countedChildCount(data.records, year);
   const states = new Map<string, RecordState>();
   for (const id of FIXED_ALLOWANCE_IDS) {
     const rule = data.rules.rules.find(r => r.id === id);
+    const compatible = rule && isAnnualCompatible(rule, year) ? rule : undefined;
     const rows = data.records.filter(r => r.categoryId === id);
-    let countedSeen = false;
+    const counted = compatible ? rows.find(r => isCountableRecord(r, compatible, year)) : undefined;
     for (const record of rows) {
       if (record.eligibility === "ineligible") { states.set(record.id, "ineligible"); continue; }
-      if (!rule || !isAnnualCompatible(rule, year)) { states.set(record.id, "rule-pending"); continue; }
+      if (!compatible) { states.set(record.id, "rule-pending"); continue; }
       if (record.eligibility !== "confirmed") { states.set(record.id, "unconfirmed"); continue; }
-      if (!validTaxDate(record.date, year) || !isActiveOn(rule, record.date)) { states.set(record.id, "invalid-date"); continue; }
-      if (countedSeen) { states.set(record.id, "duplicate"); continue; }
-      countedSeen = true;
-      const count = record.facts.qualifyingCount;
-      const max = maxQualifyingCount(id, childCount);
-      if (quantityKindOf(id) === "count" && (count === undefined || count > max)) states.set(record.id, "needs-count");
-      else states.set(record.id, "counted");
+      if (!isCountableRecord(record, compatible, year)) { states.set(record.id, "invalid-date"); continue; }
+      if (record !== counted) { states.set(record.id, "duplicate"); continue; }
+      const usable = quantityKindOf(id) !== "count" || countIsUsable(id, record.facts.qualifyingCount, childCount);
+      states.set(record.id, usable ? "counted" : "needs-count");
     }
   }
   return states;
@@ -145,11 +160,11 @@ export function applyFixedDrafts(data: TaxYearData, drafts: FixedDraft[]): TaxYe
   if (new Set(ids).size !== ids.length) throw new Error("สิทธิเดียวกันถูกส่งซ้ำในการบันทึกครั้งเดียว");
   const base = drafts.find(d => d.categoryId === "child");
   const additional = drafts.find(d => d.categoryId === "child-additional");
-  const storedBase = countedChildCount(data.records, year);
-  const baseCount = base ? (base.qualifyingCount ?? 0) : storedBase;
+  // Same base the engine counts: a confirmed base draft, or the stored confirmed child when no base draft is sent.
+  const baseCount = base ? additionalCapBase(base.confirmed, base.qualifyingCount) : countedChildCount(data.records, year);
   const baseConfirmed = base ? base.confirmed : data.records.some(r => r.categoryId === "child" && r.eligibility === "confirmed");
   if (additional?.confirmed && !baseConfirmed) throw new Error("ต้องยืนยันบุตรพื้นฐานก่อน จึงนำบุตรส่วนเพิ่มมาคำนวณได้");
-  if (additional && additional.qualifyingCount !== null && additional.qualifyingCount > baseCount) throw new Error("จำนวนบุตรส่วนเพิ่มต้องไม่มากกว่าจำนวนบุตรพื้นฐาน กรุณาแก้จำนวนเอง ระบบไม่ปรับลดให้");
+  if (additional && additional.qualifyingCount !== null && additional.qualifyingCount > baseCount) throw new Error("จำนวนบุตรส่วนเพิ่มต้องไม่มากกว่าจำนวนบุตรที่ยืนยันแล้ว (ยังไม่ยืนยันบุตรพื้นฐานให้ถือเป็น 0 คน) กรุณาแก้จำนวนเอง ระบบไม่ปรับลดให้");
 
   let records = [...data.records];
   const created: TaxRecord[] = [];
@@ -173,8 +188,14 @@ export function applyFixedDrafts(data: TaxYearData, drafts: FixedDraft[]): TaxYe
     if (canonical && draft.confirmed && !(validTaxDate(canonical.date, year) && isActiveOn(rule, canonical.date))) throw new Error("รายการเดิมมีวันที่ไม่อยู่ในปีภาษี จึงยืนยันจากรายการนี้ไม่ได้ กรุณาตรวจรายการก่อน");
     const attachments = [...(canonical?.attachments ?? []), ...draft.newAttachments];
     if (attachments.length > MAX_ATTACHMENTS) throw new Error("แนบได้ไม่เกิน 20 ไฟล์ต่อรายการ");
-    const checklist = [...new Set(draft.checklist.filter(item => rule.documents.includes(item)))];
-    const documentStatus = attachments.length === 0 ? "none" : rule.documents.every(item => checklist.includes(item)) ? "complete" : "partial";
+    // Only documents this form manages are compared. Stored items outside rule.documents are kept as they are.
+    const managed = (item: string) => rule.documents.includes(item);
+    const storedChecklist = canonical?.checklist ?? [];
+    const chosen = [...new Set(draft.checklist.filter(managed))];
+    const documentsChanged = draft.newAttachments.length > 0 || !sameSet(chosen, storedChecklist.filter(managed));
+    const checklist = canonical && !documentsChanged ? canonical.checklist : [...new Set([...storedChecklist.filter(item => !managed(item)), ...chosen])];
+    const documentStatus = canonical && !documentsChanged ? canonical.documentStatus
+      : attachments.length === 0 ? "none" : rule.documents.every(item => checklist.includes(item)) ? "complete" : "partial";
     const eligibility = draft.confirmed ? "confirmed" : canonical?.eligibility === "ineligible" ? "ineligible" : "unchecked";
     const facts = isCount ? {...(canonical?.facts ?? {}), qualifyingCount: count as number} : {...(canonical?.facts ?? {})};
     if (canonical) {

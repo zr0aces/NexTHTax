@@ -126,11 +126,13 @@ test("legacy duplicate children need an explicit canonical choice, back up first
  await expect(panelRow(page, "บุตร").getByText("รายการซ้ำ ต้องเลือกรายการหลัก")).toBeVisible();
 
  const modal = await openFixed(page, "บุตร", "แก้ไขสิทธิ");
- const save = modal.getByRole("button", {name: "สำรอง ZIP แล้วบันทึก", exact: true});
+ const save = modal.getByRole("button", {name: "ขอ ZIP สำรองแล้วบันทึก", exact: true});
  await expect(save).toBeDisabled();
  await modal.getByRole("radio").nth(1).check();
  await expect(modal.getByRole("spinbutton", {name: "บุตรที่เข้าเงื่อนไข", exact: true})).toHaveValue("2");
  const backup = page.waitForEvent("download");
+ await expect(save).toBeDisabled();
+ await modal.getByRole("checkbox", {name: /ฉันรับทราบและจะเก็บไฟล์ ZIP สำรอง/}).check();
  await expect(save).toBeEnabled();
  await save.click();
  const backupDownload = await backup;

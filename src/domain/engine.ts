@@ -1,5 +1,5 @@
 import { newId, type RuleSet, type TaxRule, type TaxRecord, type TaxYearData } from "./model";
-import { countedChildCount, isActiveOn, isCountedFamily, maxQualifyingCount, validTaxDate } from "./fixed-allowances";
+import { countedChildCount, countIsUsable, fixedAllowanceTotal, isActiveOn, isCountableRecord, isCountedFamily } from "./fixed-allowances";
 
 export interface CategoryResult { ruleId: string; paid: number; eligible: number; allowed: number; remaining: number | null; pending: number; excess: number; }
 export interface Calculation {
@@ -50,7 +50,7 @@ export function calculate(data: TaxYearData): Calculation {
       if (rule.id === "personal") { result.allowed=personal; result.eligible=personal; result.remaining=0; }
       continue;
     }
-    let validRows = rows.filter(record => record.eligibility === "confirmed" && validTaxDate(record.date,rules.taxYear) && isActiveOn(rule,record.date));
+    let validRows = rows.filter(record => isCountableRecord(record, rule, rules.taxYear));
     result.pending = sum(rows.filter(record => record.eligibility !== "ineligible" && !validRows.includes(record)).map(r => r.amount));
     if (rule.status !== "verified") { result.remaining=null; result.excess=Math.max(0,result.paid-result.pending); continue; }
     if (isCountedFamily(rule.id) || rule.id === "housing" || rule.id === "spouse") {
@@ -63,13 +63,12 @@ export function calculate(data: TaxYearData): Calculation {
     let cap = rule.cap ?? Number.MAX_SAFE_INTEGER;
     if (isCountedFamily(rule.id)) {
       const count = validRows[0]?.facts.qualifyingCount;
-      const maxCount = maxQualifyingCount(rule.id, childCount);
-      if (count === undefined || count > maxCount) {
+      if (!countIsUsable(rule.id, count, childCount)) {
         result.pending += sum(validRows.map(r => r.amount)); result.remaining=null;
         if (validRows.length) warnings.push(`${rule.name}: ต้องระบุจำนวนผู้เข้าเกณฑ์และตรวจสิทธิที่เกี่ยวข้องก่อนคำนวณ`);
         continue;
       }
-      cap = (rule.cap ?? 0) * count;
+      cap = fixedAllowanceTotal(rule.id, rule.cap ?? 0, count);
       result.eligible=cap;
     } else if (rule.id === "spouse") {
       result.eligible=validRows.length ? cap : 0;

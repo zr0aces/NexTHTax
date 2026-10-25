@@ -1,8 +1,8 @@
 import { zipSync, inflateSync } from "fflate";
 import type { Workspace } from "../domain/model";
 import { calculate } from "../domain/engine";
-import { classifyFixedRecords, isFixedAllowanceId, potentialFor } from "../domain/fixed-allowances";
-import { money, recordStateLabels } from "../ui/format";
+import { classifyFixedRecords, fixedAllowanceRows, isFixedAllowanceId, potentialFor } from "../domain/fixed-allowances";
+import { money, recordStateLabels } from "../domain/format";
 import { decoder, encoder, MAX_TOTAL, serializedFiles, validateWorkspace, workspaceFromFiles } from "./validation";
 const MAX_ENTRIES = 1100;
 const MAX_ARCHIVE = MAX_TOTAL + 20 * 1024 * 1024;
@@ -64,17 +64,23 @@ export async function importZip(bytes:Uint8Array):Promise<Workspace> {
  return workspaceFromFiles(files);
 }
 export function searchIndex(workspace:Workspace):string {
- const rows=workspace.manifest.years.flatMap(year => {
-  const data=workspace.years[String(year)], states=classifyFixedRecords(data), rules=new Map(data.rules.rules.map(rule=>[rule.id,rule]));
-  return data.records.map(r=>{
-   const fixed=isFixedAllowanceId(r.categoryId), state=states.get(r.id);
-   const potential=fixed?potentialFor(r,rules.get(r.categoryId),state):null;
-   const amount=fixed?`สิทธิประจำปี ไม่ใช่รายจ่าย · ยอดตามจำนวนที่ระบุ ${potential===null?"โปรดระบุจำนวน":money(potential)+" บาท"} · ${recordStateLabels[state??"rule-pending"]}`:(r.amount/100).toFixed(2);
-   const date=fixed?`สิทธิปี ${year} (ไม่ใช่วันที่จ่าย)`:escapeHtml(r.date);
-   return `<tr><td>${year}</td><td>${escapeHtml(r.title)}</td><td>${amount}</td><td>${date}</td><td>${r.attachments.map(a=>`<a href="${a.path}">${escapeHtml(a.originalName)}</a>`).join("<br>")}</td></tr>`;
+ const years=workspace.manifest.years.map(year => {
+  const data=workspace.years[String(year)], calc=calculate(data), states=classifyFixedRecords(data), rules=new Map(data.rules.rules.map(rule=>[rule.id,rule]));
+  // Engine total for fixed claims, including the personal allowance; the rows below show each claim separately.
+  const fixedTotal=fixedAllowanceRows(data,calc).reduce((sum,row)=>sum+row.included,0);
+  const rows=data.records.map(r=>{
+   const fixed=isFixedAllowanceId(r.categoryId), state=fixed?(states.get(r.id) ?? "rule-pending"):null;
+   const potential=fixed?potentialFor(r,rules.get(r.categoryId),state??undefined):null;
+   const kind=fixed?"สิทธิประจำปี ไม่ใช่รายจ่าย":"จ่ายจริงหรือเอกสาร";
+   const paid=fixed?"—":(r.amount/100).toFixed(2);
+   const claim=fixed?(potential===null?"โปรดระบุจำนวน":money(potential)):"—";
+   const status=state===null?"—":recordStateLabels[state];
+   const date=fixed?"ไม่มีวันที่จ่าย (สิทธิประจำปี)":escapeHtml(r.date);
+   return `<tr><td>${year}</td><td>${kind}</td><td>${escapeHtml(r.title)}</td><td>${paid}</td><td>${claim}</td><td>${status}</td><td>${date}</td><td>${r.attachments.map(a=>`<a href="${a.path}">${escapeHtml(a.originalName)}</a>`).join("<br>")}</td></tr>`;
   });
+  return {total:`<li>ปี ${year}: สิทธิยอดคงที่ที่นำมาคำนวณ ${money(fixedTotal)} บาท (รวมสิทธิส่วนตัว ตามการคำนวณของแอป)</li>`,rows};
  });
- return `<!doctype html><html lang="th"><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src &#39;none&#39;; style-src &#39;unsafe-inline&#39;; base-uri &#39;none&#39;; form-action &#39;none&#39;"><title>ดัชนีแฟ้มภาษี</title><style>body{font:16px sans-serif;margin:32px}td,th{padding:12px;border:1px solid #ccc}table{border-collapse:collapse}</style><h1>${escapeHtml(workspace.manifest.name)}</h1><p>เอกสารช่วยเตรียมยื่นภาษี ไม่ใช่แบบยื่นทางการ ค้นหาชื่อรายการด้วย Ctrl+F</p><table><thead><tr><th>ปี</th><th>รายการ</th><th>จ่ายจริง (บาท)</th><th>วันที่</th><th>เอกสาร</th></tr></thead><tbody>${rows.join("")}</tbody></table></html>`;
+ return `<!doctype html><html lang="th"><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src &#39;none&#39;; style-src &#39;unsafe-inline&#39;; base-uri &#39;none&#39;; form-action &#39;none&#39;"><title>ดัชนีแฟ้มภาษี</title><style>body{font:16px sans-serif;margin:32px}td,th{padding:12px;border:1px solid #ccc}table{border-collapse:collapse}</style><h1>${escapeHtml(workspace.manifest.name)}</h1><p>เอกสารช่วยเตรียมยื่นภาษี ไม่ใช่แบบยื่นทางการ ค้นหาชื่อรายการด้วย Ctrl+F</p><ul>${years.map(y=>y.total).join("")}</ul><table><thead><tr><th>ปี</th><th>ประเภท</th><th>รายการ</th><th>จ่ายจริง (บาท)</th><th>สิทธิยอดคงที่ตามจำนวนที่ระบุ (บาท)</th><th>สถานะการนับ</th><th>วันที่จ่ายจริง</th><th>เอกสาร</th></tr></thead><tbody>${years.flatMap(y=>y.rows).join("")}</tbody></table></html>`;
 }
 export async function exportZip(input:Workspace):Promise<Uint8Array> {
  const workspace=await validateWorkspace(input);

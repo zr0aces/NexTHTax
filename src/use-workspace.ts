@@ -38,7 +38,9 @@ export function useWorkspace(){
  async function saveZip(){const ws=current.current;if(!ws||!beginOperation())return;try{const bytes=await exportZip(ws);download(bytes,`tax-folder-${year}-${new Date().toISOString().replaceAll(":","-").slice(0,19)}.zip`,"application/zip");if(current.current===ws&&mode!=="folder")setStatus("saved");setNotice("ส่งออก ZIP แล้ว กรุณาตรวจไฟล์ในรายการดาวน์โหลด เบราว์เซอร์ไม่แจ้งแอปว่าคุณเก็บไฟล์สำเร็จหรือยกเลิก");}catch(err){setError(errorMessage(err));}finally{endOperation();}}
  function save(){if(mode==="folder"&&session.current){const snapshot=current.current!,folder=session.current;saveQueue.current=saveQueue.current.then(()=>saveFolder(snapshot,folder));}else void saveZip();}
  async function recover(){if(!mayLeave()||!window.confirm("กู้คืนโฟลเดอร์เป็นฉบับก่อนบันทึกครั้งล่าสุด? งานหลังจุดสำรองจะถูกแทนที่ กรุณาเก็บ ZIP ของงานปัจจุบันก่อน"))return;if(!beginOperation())return;const expected=current.current;try{const handle=await pickDirectory();await restoreBackup(handle);const opened=await FolderSession.open(handle);assertCurrent(expected);load(opened.workspace,"folder",opened.session);setNotice("กู้คืนสำรองแล้ว");}catch(err){setError(errorMessage(err));}finally{endOperation();}}
- async function applyRules(rules:RuleSet){const ws=current.current;if(!ws||!beginOperation())return false;const data=ws.years[year];try{const replacement=replaceYearRules(data,rules);download(await exportZip(ws),`tax-before-rules-${year}.zip`,"application/zip");assertCurrent(ws);updateYear(replacement);setNotice("เปลี่ยนชุดกฎหลังยืนยันแล้ว รายการที่เงื่อนไขเปลี่ยนต้องตรวจสิทธิอีกครั้ง โปรดเก็บ ZIP สำรองก่อนเปลี่ยนจากรายการดาวน์โหลด");return true;}catch(err){setError(errorMessage(err));return false;}finally{endOperation();}}
+ /** Shared pre-change backup: requests a ZIP download, then stops if the workspace changed while it was built. Caller holds the operation lock. */
+ async function downloadBackupZip(ws:Workspace,filename:string){download(await exportZip(ws),filename,"application/zip");assertCurrent(ws);}
+ async function applyRules(rules:RuleSet){const ws=current.current;if(!ws||!beginOperation())return false;const data=ws.years[year];try{const replacement=replaceYearRules(data,rules);await downloadBackupZip(ws,`tax-before-rules-${year}.zip`);updateYear(replacement);setNotice("เปลี่ยนชุดกฎหลังยืนยันแล้ว รายการที่เงื่อนไขเปลี่ยนต้องตรวจสิทธิอีกครั้ง โปรดเก็บ ZIP สำรองก่อนเปลี่ยนจากรายการดาวน์โหลด");return true;}catch(err){setError(errorMessage(err));return false;}finally{endOperation();}}
  function saveRecord(record:TaxRecord,files:Map<string,Uint8Array>,expected:Workspace,recordYear:number){
   const ws=current.current;
   if(!ws||ws!==expected||year!==recordYear)throw new Error("แฟ้มเปลี่ยนไปแล้ว กรุณาเปิดรายการอีกครั้ง งานเดิมไม่ถูกเขียนทับ");
@@ -53,7 +55,7 @@ export function useWorkspace(){
   if(!ws||ws!==expected||year!==recordYear)throw new Error("แฟ้มเปลี่ยนไปแล้ว กรุณาเปิดสิทธิอีกครั้ง งานเดิมไม่ถูกเขียนทับ");
   if(backupFirst){
    if(!beginOperation())throw new Error("กำลังดำเนินการอยู่ กรุณารอสักครู่");
-   try{download(await exportZip(ws),`tax-before-fixed-${recordYear}.zip`,"application/zip");assertCurrent(ws);}
+   try{await downloadBackupZip(ws,`tax-before-fixed-${recordYear}.zip`);}
    finally{endOperation();}
   }
   if(current.current!==ws)throw new Error("แฟ้มเปลี่ยนระหว่างสำรอง ยกเลิกการบันทึกเพื่อรักษางานปัจจุบัน");

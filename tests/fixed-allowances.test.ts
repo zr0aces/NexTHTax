@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { calculate } from "../src/domain/engine";
 import { makeYear } from "../src/domain/workspace";
 import { newId, type Attachment, type TaxRecord, type TaxYearData } from "../src/domain/model";
-import { applyFixedDrafts, fixedAllowanceRows, potentialFor, type FixedDraft } from "../src/domain/fixed-allowances";
+import { applyFixedDrafts, classifyFixedRecords, countedAmountOf, fixedAllowanceRows, isAnnualCompatible, potentialFor, type FixedDraft } from "../src/domain/fixed-allowances";
 
 // Fictional fixtures (สมมติ). Baseline behavior of fixed-allowance categories under the 2569 snapshot.
 const B = (value: number) => Math.round(value * 100);
@@ -222,14 +222,18 @@ describe("สิทธิยอดคงที่: annual upsert แบบ atomi
     expect(() => applyFixedDrafts(data, [draft("child", 1, false), draft("child-additional", 1, true)])).toThrow("ยืนยันบุตรพื้นฐาน");
   });
 
-  it("ปิดบุตรพื้นฐานพร้อมส่วนเพิ่มในการบันทึกเดียวได้ และเก็บจำนวนไว้", () => {
+  it("ปิดบุตรพื้นฐานต้องรีเซ็ตส่วนเพิ่มเป็น 0 ในการบันทึกเดียวกัน เพราะไม่ปรับลดให้เอง", () => {
     const data = year();
     data.records = [rec("child", { qualifyingCount: 2 }), rec("child-additional", { qualifyingCount: 1 })];
-    const next = applyFixedDrafts(data, [
+    expect(() => applyFixedDrafts(data, [
       draft("child", 2, false, {canonicalId: data.records[0].id}),
       draft("child-additional", 1, false, {canonicalId: data.records[1].id}),
+    ])).toThrow("ไม่มากกว่า");
+    const next = applyFixedDrafts(data, [
+      draft("child", 2, false, {canonicalId: data.records[0].id}),
+      draft("child-additional", 0, false, {canonicalId: data.records[1].id}),
     ]);
-    expect(next.records.map(r => r.facts.qualifyingCount)).toEqual([2, 1]);
+    expect(next.records.map(r => r.facts.qualifyingCount)).toEqual([2, 0]);
     expect(next.records.every(r => r.eligibility === "unchecked")).toBe(true);
     expect(calculate(next).deductions).toBe(0);
   });
@@ -272,3 +276,126 @@ describe("สิทธิยอดคงที่: annual upsert แบบ atomi
     expect(applyFixedDrafts(data, [draft("spouse", null, true, {canonicalId: legacy.id})]).records[0].eligibility).toBe("confirmed");
   });
 });
+
+describe("ข้อมูลเดิมไม่ถูกเขียนทับโดยไม่ตั้งใจ", () => {
+  const docRule = () => year().rules.rules.find(r => r.id === "parents")!;
+  const managedDoc = () => docRule().documents[0];
+
+  it("รายการเดิมที่ไม่มีการแก้ไขเอกสาร คงรายการตรวจนอกเหนือจากกฎและ documentStatus เดิม", () => {
+    const data = year();
+    const legacy = rec("parents", { qualifyingCount: 1 }, {documentStatus: "partial", checklist: ["ข้อมูลเก่าที่ไม่อยู่ในกฎ", managedDoc()]});
+    data.records = [legacy];
+    const next = applyFixedDrafts(data, [draft("parents", 2, false, {canonicalId: legacy.id, checklist: [managedDoc()]})]);
+    expect(next.records[0].checklist).toEqual(["ข้อมูลเก่าที่ไม่อยู่ในกฎ", managedDoc()]);
+    expect(next.records[0].documentStatus).toBe("partial");
+    expect(next.records[0].facts.qualifyingCount).toBe(2);
+  });
+
+  it("รายการตรวจที่ไม่อยู่ในกฎถูกเก็บไว้เมื่อผู้ใช้ติ๊กรายการตรวจของกฎ", () => {
+    const data = year();
+    const legacy = rec("parents", { qualifyingCount: 1 }, {checklist: ["ข้อมูลเก่าที่ไม่อยู่ในกฎ"]});
+    data.records = [legacy];
+    const next = applyFixedDrafts(data, [draft("parents", 1, false, {canonicalId: legacy.id, checklist: [managedDoc()]})]);
+    expect(next.records[0].checklist).toEqual(["ข้อมูลเก่าที่ไม่อยู่ในกฎ", managedDoc()]);
+    expect(next.records[0].documentStatus).toBe("none");
+  });
+
+  it("เพิ่มเอกสารแล้วคำนวณ documentStatus ใหม่ โดยยังคงรายการตรวจเดิมนอกกฎ", () => {
+    const data = year();
+    const legacy = rec("parents", { qualifyingCount: 1 }, {documentStatus: "none", checklist: ["ข้อมูลเก่าที่ไม่อยู่ในกฎ"]});
+    data.records = [legacy];
+    const next = applyFixedDrafts(data, [draft("parents", 1, false, {canonicalId: legacy.id, checklist: [managedDoc()], newAttachments: [attachment()]})]);
+    expect(next.records[0].attachments).toHaveLength(1);
+    expect(next.records[0].checklist).toEqual(["ข้อมูลเก่าที่ไม่อยู่ในกฎ", managedDoc()]);
+    expect(next.records[0].documentStatus).toBe("complete");
+  });
+
+  it("ไม่มีเอกสารและรายการตรวจที่ผู้ใช้เปลี่ยน คง documentStatus เดิมแม้ค่าไม่สอดคล้องกับไฟล์", () => {
+    const data = year();
+    const legacy = rec("parents", { qualifyingCount: 1 }, {documentStatus: "complete", checklist: []});
+    data.records = [legacy];
+    const next = applyFixedDrafts(data, [draft("parents", 1, false, {canonicalId: legacy.id})]);
+    expect(next.records[0].documentStatus).toBe("complete");
+  });
+});
+
+describe("ขอบเขตบุตรส่วนเพิ่มและการยืนยันบุตรพื้นฐาน", () => {
+  it("บุตรพื้นฐานที่ยังไม่ยืนยันใช้จำนวนเป็น 0 สำหรับเพดานส่วนเพิ่ม แม้ส่งจำนวน 2 มา", () => {
+    const data = year();
+    expect(() => applyFixedDrafts(data, [draft("child", 2, false), draft("child-additional", 1, false)])).toThrow("ไม่มากกว่า");
+    expect(applyFixedDrafts(data, [draft("child", 2, true), draft("child-additional", 2, false)]).records).toHaveLength(2);
+  });
+
+  it("ไม่มีร่างบุตรพื้นฐานแต่บุตรที่ยืนยันในแฟ้มใช้เป็นเพดานเท่าที่ engine นับ", () => {
+    const data = year();
+    data.records = [rec("child", { qualifyingCount: 2 })];
+    expect(() => applyFixedDrafts(data, [draft("child-additional", 3, false)])).toThrow("ไม่มากกว่า");
+    expect(applyFixedDrafts(data, [draft("child-additional", 2, false)]).records).toHaveLength(2);
+    data.records = [rec("child", { qualifyingCount: 2 }, { eligibility: "unchecked" })];
+    expect(() => applyFixedDrafts(data, [draft("child-additional", 1, false)])).toThrow("ไม่มากกว่า");
+  });
+
+  it("ค่าที่แสดงในฟอร์มและยอดที่คำนวณได้ตรงกับเพดานเดียวกัน", () => {
+    const data = year();
+    const base = draft("child", 2, true);
+    const extra = draft("child-additional", 2, false);
+    expect(() => applyFixedDrafts(data, [base, extra])).not.toThrow();
+    expect(() => applyFixedDrafts(data, [draft("child", 2, false), extra])).toThrow("ไม่มากกว่า");
+  });
+});
+
+describe("สิทธิที่ไม่รองรับยอดคงที่ในปีนี้", () => {
+  function nonAnnual(): TaxYearData {
+    const data = year();
+    data.rules.rules = data.rules.rules.map(r => r.id === "parents" ? {...r, rateBps: 500} : r);
+    return data;
+  }
+
+  it("กฎที่ยืนยันแล้วแต่มีอัตราต่อรายได้ไม่ใช่สิทธิยอดคงที่ และคำสั่งบันทึกถูกปฏิเสธ", () => {
+    const data = nonAnnual();
+    const rule = data.rules.rules.find(r => r.id === "parents")!;
+    expect(rule.status).toBe("verified");
+    expect(isAnnualCompatible(rule, 2569)).toBe(false);
+    expect(classifyFixedRecords({...data, records: [rec("parents", {qualifyingCount: 1})]}).size).toBe(1);
+    expect(() => applyFixedDrafts(data, [draft("parents", 1)])).toThrow("เก็บเป็นเอกสาร");
+  });
+
+  it("รายการเดิมของสิทธิที่ไม่รองรับถูกจัดเป็นกฎรอ ไม่นับเป็นยอดสิทธิ", () => {
+    const data = nonAnnual();
+    const stored = rec("parents", {qualifyingCount: 1});
+    data.records = [stored];
+    expect(classifyFixedRecords(data).get(stored.id)).toBe("rule-pending");
+    expect(rowOf(data, "parents")).toMatchObject({status: "rule-pending", rate: 0, potential: null});
+  });
+});
+
+describe("รายการซ้ำก่อนและหลังบันทึก", () => {
+  it("เลือกรายการหลักใหม่ให้รายการเดิมเป็นไม่ยืนยัน และรายการที่เลือกเป็นนับได้", () => {
+    const data = year();
+    const first = rec("parents", { qualifyingCount: 1 });
+    const second = rec("parents", { qualifyingCount: 2 });
+    data.records = [first, second];
+    const before = classifyFixedRecords(data);
+    expect(before.get(first.id)).toBe("counted");
+    expect(before.get(second.id)).toBe("duplicate");
+    const next = applyFixedDrafts(data, [draft("parents", 2, true, {canonicalId: second.id})]);
+    const after = classifyFixedRecords(next);
+    expect(after.get(second.id)).toBe("counted");
+    expect(after.get(first.id)).toBe("unconfirmed");
+    expect(countedAmountOf(next.records[1], next.rules.rules.find(r => r.id === "parents"), after.get(second.id))).toBe(B(60000));
+  });
+});
+
+describe("เครื่องมือคำนวณเดียวสำหรับสิทธิยอดคงที่", () => {
+  it("ยอดที่นับต่อรายการตรงกับยอดที่ engine อนุญาตของหมวดนั้นทุกแบบ", () => {
+    const data = year();
+    data.records = [rec("child", { qualifyingCount: 3 }), rec("spouse"), rec("disability-care", { qualifyingCount: 2 })];
+    const out = calculate(data);
+    for (const record of data.records) {
+      const rule = data.rules.rules.find(r => r.id === record.categoryId);
+      const state = classifyFixedRecords(data).get(record.id);
+      expect(countedAmountOf(record, rule, state)).toBe(out.categories.find(c => c.ruleId === record.categoryId)!.allowed);
+    }
+  });
+});
+

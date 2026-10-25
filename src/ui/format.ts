@@ -1,5 +1,6 @@
-import type { FixedStatus, RecordState } from "../domain/fixed-allowances";
-export const money = (satang: number) => new Intl.NumberFormat("th-TH", {maximumFractionDigits:2}).format(satang / 100);
+import type { FixedStatus } from "../domain/fixed-allowances";
+import { money } from "../domain/format";
+export { money, recordStateLabels } from "../domain/format";
 export const fullMoney = (satang: number) => `${money(satang)} บาท`;
 export function parseMoney(value: string): number | null {
  if (!value.trim()) return null;
@@ -13,5 +14,4 @@ export const dateLabel = (date: string) => new Intl.DateTimeFormat("th-TH", {day
 export const groupNames: Record<string,string> = {family:"ส่วนตัวและครอบครัว", insurance:"ประกันและประกันสังคม",retirement:"ออมเพื่อเกษียณ",investment:"การลงทุนที่มีสิทธิภาษี",housing:"ที่อยู่อาศัย",donations:"เงินบริจาค",special:"มาตรการเฉพาะปี",income:"รายได้และการยื่นภาษี",other:"หมวดของฉัน"};
 export const docLabels = {none:"ยังไม่มีเอกสาร",partial:"มีเอกสารบางส่วน",complete:"ครบตามรายการตรวจ"};
 export const eligibilityLabels = {unchecked:"ยังไม่ได้ตรวจสิทธิ",confirmed:"ผู้ใช้ตรวจยืนยันแล้ว",ineligible:"ไม่เข้าเงื่อนไข",pending:"รอกฎยืนยัน"};
-export const recordStateLabels: Record<RecordState,string> = {counted:"นับในยอดสิทธิแล้ว",duplicate:"ไม่นับ · รายการซ้ำ",unconfirmed:"ยังไม่ยืนยันให้นำมาคำนวณ",ineligible:"ผู้ใช้ระบุว่าไม่เข้าเงื่อนไข",["invalid-date"]:"วันที่ไม่อยู่ในปีภาษี",["needs-count"]:"โปรดระบุจำนวนและตรวจสิทธิ",["rule-pending"]:"กฎปีนี้ยังไม่ยืนยัน"};
 export const fixedStatusLabels: Record<FixedStatus,string> = {none:"ยังไม่ได้ตั้งค่า",included:"นำมาคำนวณแล้ว",pending:"รอตรวจ",conflict:"รายการซ้ำ ต้องเลือกรายการหลัก",excluded:"ผู้ใช้ระบุว่าไม่เข้าเงื่อนไข",["rule-pending"]:"กฎปีนี้ยังไม่ยืนยัน"};

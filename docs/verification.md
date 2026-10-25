@@ -69,7 +69,7 @@ E2E สร้างหลักฐานใน `test-results/artifacts/` (ไม
 ผู้ใช้ยังไม่ได้ยืนยันหน้าตาที่เปลี่ยน ตามแผน `process/general-plans/active/fixed-allowance-ui-ux_PLAN_25-10-26.md` ผลด้านล่างคือผลอัตโนมัติและการดูภาพ 1440px/390px ที่สร้างในรอบนี้
 
 - `npm run typecheck`: ผ่าน
-- `npm test` (vitest): 151 ผ่าน / 0 ไม่ผ่าน (engine 68 · storage 53 · fixed-allowances 30)
+- `npm test` (vitest): 167 ผ่าน / 0 ไม่ผ่าน (engine 68 · storage 53 · fixed-allowances 41 · fixed-allowance-ui 4 · zip-index 1)
 - `npm run build`: ผ่าน
 - `npm run test:e2e`: 15 ผ่าน / 0 ไม่ผ่าน (app 7 เดิม + fixed-allowances 8 ใหม่) มีภาพ `test-results/artifacts/fixed-allowance-*.png` และ `fixed-allowance.pdf`
 - `node scripts/verify-pdf.mjs`: ผ่าน 4 หน้า (ค่าเริ่มต้นเดิม)
