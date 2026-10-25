@@ -67,6 +67,8 @@ export interface FixedRow {
   /** Records awaiting confirmation or conflict review. Independent of money amounts. */
   pendingRecords: number;
   records: FixedRecordView[];
+  /** True when the rule is verified but cannot be used as an annual fixed amount (documents only). */
+  unsupported?: boolean;
 }
 
 /** Amount the user asked for at the record's current quantity. Null when quantity is missing or invalid. */
@@ -137,7 +139,7 @@ export function fixedAllowanceRows(data: TaxYearData, calc: Calculation): FixedR
     else if (count > 0) status = "included";
     else if (pending.length > 0) { status = "pending"; pendingRecords = pending.length; }
     else status = "excluded";
-    rows.push({ ruleId: id, name: rule?.name ?? id, quantityKind, status, primary, quantity, rate: compatible ? (rule?.cap ?? 0) : 0, potential, included, pendingRecords, records });
+    rows.push({ ruleId: id, name: rule?.name ?? id, quantityKind, status, primary, quantity, rate: compatible ? (rule?.cap ?? 0) : 0, potential, included, pendingRecords, records, unsupported: !compatible && rule?.status === "verified" });
   }
   return rows;
 }

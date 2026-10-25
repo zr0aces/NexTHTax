@@ -18,7 +18,7 @@ export function FixedAllowancePanel({rows, year, onOpen}: {rows: FixedRow[]; yea
     </div>
     <ul className="fixed-rows">{rows.map(row => {
       const isPersonal = row.quantityKind === "personal";
-      const statusText = isPersonal ? (row.status === "included" ? "รวมในฐานคำนวณแล้ว" : "กฎปีนี้ยังไม่ยืนยัน") : fixedStatusLabels[row.status];
+      const statusText = isPersonal ? (row.status === "included" ? "รวมในฐานคำนวณแล้ว" : "กฎปีนี้ยังไม่ยืนยัน") : row.unsupported ? "ตั้งค่าเป็นยอดคงที่ไม่ได้ในปีนี้ · เก็บเอกสารได้" : fixedStatusLabels[row.status];
       const confirmed = row.status === "included";
       const equation = row.potential === null
         ? "โปรดระบุจำนวนและตรวจสิทธิ"

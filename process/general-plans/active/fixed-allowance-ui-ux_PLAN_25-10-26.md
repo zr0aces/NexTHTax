@@ -2,10 +2,10 @@
 
 Date: 2026-10-25
 Complexity: SIMPLE
-Status: PLANNED — no implementation
+Status: VERIFIED — user confirmed screenshots 2026-10-25; Safari/Firefox, screen reader and real folder mode not tested
 
 - วันที่: 25 ตุลาคม 2569 (2026-10-25)
-- สถานะ: ⏳ PLANNED — จัดทำแผนเท่านั้น ยังไม่ได้แก้ source, tests, rules หรือเว็บไซต์
+- สถานะ: ✅ VERIFIED — ผู้ใช้ยืนยันภาพ desktop/composer/mobile แล้ว (2026-10-25) ยังไม่ได้ทดสอบ Safari/Firefox, screen reader และโหมดโฟลเดอร์จริง
 - Complexity: SIMPLE — หนึ่ง feature และหนึ่ง execution stream ใช้ระบบเดิม ไม่ใช่ phase program
 - Execute anchor: `process/general-plans/active/fixed-allowance-ui-ux_PLAN_25-10-26.md`
 - ฐานที่สำรวจ: commit `cb1bf7f`, ชุดกฎ `2569.2-reviewed-2026-10-25`

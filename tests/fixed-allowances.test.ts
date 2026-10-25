@@ -366,6 +366,7 @@ describe("สิทธิที่ไม่รองรับยอดคงท�
     data.records = [stored];
     expect(classifyFixedRecords(data).get(stored.id)).toBe("rule-pending");
     expect(rowOf(data, "parents")).toMatchObject({status: "rule-pending", rate: 0, potential: null});
+    expect(rowOf(data, "parents").unsupported).toBe(true);
   });
 });
 
