@@ -64,12 +64,16 @@ async function fingerprint(root: DirHandleLike): Promise<Record<string, string>>
 }
 
 describe("opening a legacy workspace", () => {
-  it("reports upgrade-required without creating or changing any file", async () => {
+  it("opens in compatibility mode without creating or changing any file", async () => {
     const root = await legacyFolder();
     const before = await fingerprint(root);
     const opened = await openWorkspace(root);
-    expect(opened).toMatchObject({ upgradeRequired: true });
+    expect(opened).toHaveProperty("session");
     expect(await fingerprint(root)).toEqual(before);
+    if ("session" in opened) {
+      expect(opened.session.storageSchemaVersion).toBe(1);
+      opened.session.close();
+    }
   });
 });
 

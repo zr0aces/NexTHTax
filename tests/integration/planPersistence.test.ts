@@ -48,7 +48,11 @@ describe("schema 3 plan compatibility and persistence", () => {
     const { root, old, bytes } = await v2Source();
     const before = await listTree(root);
     const opened = await openWorkspace(root);
-    expect(opened).toMatchObject({ upgradeRequired: true, manifest: { schemaVersion: 2 } });
+    expect(opened).toHaveProperty("session");
+    if ("session" in opened) {
+      expect(opened.session.storageSchemaVersion).toBe(2);
+      opened.session.close();
+    }
     expect(Array.from((await readTree(root, "data.json"))!)).toEqual(Array.from(bytes));
     const target = createMemoryFolder();
     const migrated = await migrateWorkspaceIntoEmptyFolder(root, target, true);

@@ -33,9 +33,41 @@ export function validateManifest(m: unknown): Manifest {
   return result.data;
 }
 
-/** Writable sessions accept only current manifests, never silently upgrade legacy data. */
+/** Strict current-only decoder for callers requiring newer-format features. */
 export function decodeCurrentManifest(bytes: Uint8Array): Manifest {
   const manifest = decodeManifest(bytes);
   if (manifest.schemaVersion !== SCHEMA_VERSION) throw new StorageError("upgrade-required", "ข้อมูลรุ่นเดิม ต้องสร้างสำเนารุ่นใหม่ในโฟลเดอร์ว่างก่อนแก้ไข");
   return manifest;
+}
+
+/** Normalize only in memory. Opening old data must not write or bump its revision. */
+export function editableManifest(stored: StoredManifest): Manifest {
+  if (stored.schemaVersion === SCHEMA_VERSION) return stored;
+  if (stored.schemaVersion === 2) return validateManifest({ ...stored, schemaVersion: SCHEMA_VERSION });
+  return validateManifest({
+    ...stored, schemaVersion: SCHEMA_VERSION,
+    records: stored.records.map((r) => ({ ...r, subcategory: null })),
+    years: Object.fromEntries(Object.entries(stored.years).map(([key, year]) => [key, { ...year, taxInputs: null, scenarios: [] }])),
+  });
+}
+
+/** Write back the opened format. Unsupported new facts are rejected, never silently dropped. */
+export function manifestForStorage(current: Manifest, version: StoredManifest["schemaVersion"]): StoredManifest {
+  if (version === SCHEMA_VERSION) return current;
+  const years: Record<string, unknown> = {};
+  for (const [key, year] of Object.entries(current.years)) {
+    const { plan, ...v2Year } = year;
+    if (plan != null) throw new StorageError("upgrade-required", "แผนที่บันทึกต้องใช้รูปแบบใหม่ กรุณาสร้างสำเนาสำหรับคุณสมบัติใหม่ก่อน");
+    if (version === 2) { years[key] = v2Year; continue; }
+    const { taxInputs, scenarios, ...v1Year } = v2Year;
+    if (taxInputs !== null || scenarios.length > 0) throw new StorageError("upgrade-required", "ข้อมูลคำนวณภาษีต้องใช้รูปแบบใหม่ กรุณาสร้างสำเนาสำหรับคุณสมบัติใหม่ก่อน");
+    years[key] = v1Year;
+  }
+  const records = version === 2 ? current.records : current.records.map(({ subcategory, ...record }) => {
+    if (subcategory !== null) throw new StorageError("upgrade-required", "ประเภทย่อยต้องใช้รูปแบบใหม่ กรุณาสร้างสำเนาสำหรับคุณสมบัติใหม่ก่อน");
+    return record;
+  });
+  const result = (version === 2 ? v2ManifestSchema : legacyManifestSchema).safeParse({ ...current, schemaVersion: version, years, records });
+  if (!result.success) throw new StorageError("invalid", result.error.issues[0]?.message ?? "ข้อมูลไม่ตรงรูปแบบเดิม");
+  return result.data;
 }

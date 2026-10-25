@@ -59,6 +59,7 @@ interface Props {
   onSavePlan?: TaxPlanPanelProps["onSave"];
   onVerifyPlanEvidence?: TaxPlanPanelProps["onVerifyEvidence"];
   trustedRules?: boolean;
+  planDisabled?: boolean;
 }
 
 const amountText = (satang: number | null | undefined): string => (satang === null || satang === undefined ? "" : formatSatang(satang));
@@ -232,7 +233,7 @@ function describeResult(result: SalaryCaseResult | null): ReactNode {
   );
 }
 
-export function TaxWorksheet({ manifest, taxYear, bundle, ruleDigest, onSave, disabled = false, onUnsavedChange, onSavePlan, onVerifyPlanEvidence, trustedRules = false }: Props) {
+export function TaxWorksheet({ manifest, taxYear, bundle, ruleDigest, onSave, disabled = false, onUnsavedChange, onSavePlan, onVerifyPlanEvidence, trustedRules = false, planDisabled = false }: Props) {
   const records = manifest.records;
   const saved: TaxInputs | null = manifest.years[String(taxYear)]?.taxInputs ?? null;
   const [draft, setDraft] = useState<Draft>(() => draftFrom(saved));
@@ -406,7 +407,7 @@ export function TaxWorksheet({ manifest, taxYear, bundle, ruleDigest, onSave, di
 
       {onSavePlan && onVerifyPlanEvidence && <TaxPlanPanel
         manifest={manifest} taxYear={taxYear} bundle={bundle} ruleDigest={ruleDigest}
-        trustedRules={trustedRules} disabled={disabled || pending || dirty}
+        trustedRules={trustedRules} disabled={disabled || pending || dirty || planDisabled}
         onUnsavedChange={setPlanDirty} onSave={onSavePlan} onVerifyEvidence={onVerifyPlanEvidence}
       />}
 

@@ -1,7 +1,7 @@
 import { MAX_ATTACHMENT_BYTES, MAX_METADATA_BYTES, MEDIA_EXTENSIONS, SCHEMA_VERSION, type Attachment, type Manifest, type PriorManifest, type StoredManifest } from "../domain/schema";
 import { readImageHeader } from "../domain/imageHeaders";
 import { acquireWriterLock, type WriterLock } from "./locking";
-import { decodeManifest, decodeCurrentManifest, encodeManifest, validateManifest } from "./manifest";
+import { decodeManifest, editableManifest, manifestForStorage, encodeManifest, validateManifest } from "./manifest";
 import {
   type DirHandleLike,
   StorageError,
@@ -67,11 +67,10 @@ export async function openWorkspace(root: DirHandleLike): Promise<OpenResult | {
     throw new StorageError("not-empty", "โฟลเดอร์นี้ไม่ว่างและไม่มี data.json ของ NexTHTax");
   }
   const manifest = decodeManifest(bytes);
-  if (manifest.schemaVersion !== SCHEMA_VERSION) return { upgradeRequired: true, manifest };
   const baselineSha = await sha256Hex(bytes);
   const inventory = await inspectAttachments(root, manifest);
   const lock = await acquireWriterLock(manifest.workspaceId);
-  const session = new WorkspaceSession(root, manifest, baselineSha, lock, await ruleBytesIn(root));
+  const session = new WorkspaceSession(root, editableManifest(manifest), baselineSha, lock, await ruleBytesIn(root), manifest.schemaVersion);
   return {
     session,
     missingAttachments: inventory.missing,
@@ -157,6 +156,7 @@ export class WorkspaceSession {
     baselineSha: string,
     lock: WriterLock,
     ruleBytes: number,
+    readonly storageSchemaVersion: StoredManifest["schemaVersion"] = SCHEMA_VERSION,
   ) {
     this.manifestState = manifest;
     this.baselineSha = baselineSha;
@@ -166,6 +166,10 @@ export class WorkspaceSession {
 
   get manifest(): Manifest {
     return this.manifestState;
+  }
+
+  get storedManifest(): StoredManifest {
+    return manifestForStorage(this.manifestState, this.storageSchemaVersion);
   }
 
   get readOnly(): boolean {
@@ -203,7 +207,9 @@ export class WorkspaceSession {
     if (this.pendingRel) {
       const pending = await readFileBytes(this.root, this.pendingRel, MAX_METADATA_BYTES);
       if (pending && (await sha256Hex(pending)) === sha) {
-        this.manifestState = decodeCurrentManifest(pending);
+        const stored = decodeManifest(pending);
+        if (stored.schemaVersion !== this.storageSchemaVersion) throw new StorageError("conflict", "รูปแบบข้อมูลเปลี่ยนระหว่างบันทึก กรุณาเปิดโฟลเดอร์ใหม่");
+        this.manifestState = editableManifest(stored);
         this.baselineSha = sha;
         this.pendingRel = null;
         return;
@@ -217,7 +223,7 @@ export class WorkspaceSession {
     this.assertWritable();
     await this.reconcile();
     const candidate = validateManifest({ ...next, revision: this.manifestState.revision + 1, updatedAt: nowIso() });
-    const bytes = encodeManifest(candidate);
+    const bytes = encodeManifest(manifestForStorage(candidate, this.storageSchemaVersion));
     const budget = checkBudget({
       attachmentByteSizes: Object.values(candidate.attachments).map((a) => a.byteSize),
       metadataBytes: bytes.byteLength,
@@ -294,7 +300,7 @@ export class WorkspaceSession {
       };
       const budget = checkBudget({
         attachmentByteSizes: [...Object.values(this.manifestState.attachments).map((a) => a.byteSize), bytes.byteLength],
-        metadataBytes: encodeManifest(this.manifestState).byteLength,
+        metadataBytes: encodeManifest(this.storedManifest).byteLength,
         ruleBytes: this.ruleBytes,
         extraEntries: RESERVED_ENTRIES,
       });

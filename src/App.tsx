@@ -179,15 +179,24 @@ export function App() {
     setManifest(result.session.manifest);
     setMissing(result.missingAttachments);
     setPending(result.pendingCandidates);
-    setSelectedId(null);
+    const existingRecord = result.session.storageSchemaVersion < SCHEMA_VERSION
+      ? result.session.manifest.records.filter((r) => r.trashedAt === null).sort((a, b) => b.taxYear - a.taxYear)[0]
+      : undefined;
+    setSelectedId(existingRecord?.id ?? null);
     setSaveState("saved");
     setSetupRoot(null);
     setUpgrade(null);
     setPreview(null);
-    setTab("worksheet");
+    setTab(existingRecord || result.session.storageSchemaVersion === 1 ? "documents" : "worksheet");
     setExtraYears([]);
     const yearsWithData = Object.keys(result.session.manifest.years).map(Number).sort((a, b) => b - a);
-    setTaxYear(yearsWithData[0] ?? bangkokCalendarYear());
+    const existingWorksheetYear = result.session.storageSchemaVersion < SCHEMA_VERSION
+      ? yearsWithData.find((year) => {
+        const saved = result.session.manifest.years[String(year)]!;
+        return saved.taxInputs !== null || saved.scenarios.length > 0;
+      })
+      : undefined;
+    setTaxYear(existingRecord?.taxYear ?? existingWorksheetYear ?? yearsWithData[0] ?? bangkokCalendarYear());
     const warnings = [];
     if (result.session.readOnly) warnings.push("โฟลเดอร์นี้เปิดแบบอ่านอย่างเดียว เพราะมีหน้าต่างอื่นแก้ไขอยู่");
     if (result.orphanFiles.length > 0) warnings.push(`พบไฟล์ค้าง ${result.orphanFiles.length} ไฟล์ใน attachments/ (ไม่ถูกลบอัตโนมัติ)`);
@@ -238,7 +247,7 @@ export function App() {
     });
 
   const closeFolder = () => {
-    if (!confirmLeave()) return;
+    if (!confirmLeave()) return false;
     session?.close();
     setSession(null);
     setRoot(null);
@@ -247,6 +256,13 @@ export function App() {
     setSelectedId(null);
     setPreview(null);
     setNotice("ปิดโฟลเดอร์แล้ว");
+    return true;
+  };
+
+  const requestFeatureUpgrade = () => {
+    if (!session || !root) return;
+    const stored = session.storedManifest;
+    if (stored.schemaVersion !== SCHEMA_VERSION && closeFolder()) setUpgrade({ source: root, manifest: stored });
   };
 
   /** Commits one mutation. Save state reflects whether the write was read back and accepted. */
@@ -586,7 +602,7 @@ export function App() {
 
       {upgrade && (
         <section aria-labelledby="upgrade-title" className="entry">
-          <h2 id="upgrade-title">ข้อมูลรุ่นเดิม ต้องสร้างสำเนารุ่นใหม่ก่อนแก้ไข</h2>
+          <h2 id="upgrade-title">สร้างสำเนาสำหรับคุณสมบัติใหม่</h2>
           <p>{upgrade.manifest.taxpayer.displayName} · {upgrade.manifest.records.length} รายการ</p>
           <p>ต้นฉบับและไฟล์กู้คืนจะไม่ถูกแก้ไข สำเนาใช้กับแอปรุ่นใหม่เท่านั้น ข้อมูลจาก schema 1 จะยังไม่ระบุประเภทย่อย ข้อมูลจาก schema 2 คงประเภทเดิม กรุณาเก็บต้นฉบับไว้สำหรับย้อนกลับ</p>
           <button type="button" disabled={busy} onClick={() => void migrateFolder()}>สร้างสำเนารุ่นใหม่ในโฟลเดอร์ว่าง</button>
@@ -617,6 +633,14 @@ export function App() {
       {session && manifest && root && (
         <main>
           <p className="warning">ข้อมูลทั้งหมดอยู่ในโฟลเดอร์ที่คุณเลือก โปรดสำรอง ZIP เป็นระยะ</p>
+          {session.storageSchemaVersion < SCHEMA_VERSION && (
+            <section className="notice" aria-label="การแก้ไขข้อมูลรูปแบบเดิม">
+              <p>เปิดข้อมูลเดิมแล้ว แก้ไขและบันทึกในรูปแบบเดิม (schema {session.storageSchemaVersion}) ได้โดยไม่ต้องสร้างสำเนา
+                {session.storageSchemaVersion === 1 ? " · ประเภทย่อยและใบคำนวณภาษีต้องใช้สำเนารูปแบบใหม่" : " · การบันทึกแผนต้องใช้สำเนารูปแบบใหม่"}
+              </p>
+              <button type="button" disabled={busy || dirty || saveState !== "saved"} onClick={requestFeatureUpgrade}>สร้างสำเนาสำหรับคุณสมบัติใหม่</button>
+            </section>
+          )}
           {saveState === "save-error" && (
             <div role="alert" className="update">
               <p>บันทึกไม่สำเร็จ ข้อมูลล่าสุดยังอยู่ในหน้าจอ ลองแก้สาเหตุ (สิทธิ์โฟลเดอร์ พื้นที่ดิสก์) แล้วแก้ไขใหม่เพื่อบันทึกอีกครั้ง</p>
@@ -636,7 +660,7 @@ export function App() {
             <button type="button" disabled={busy} onClick={() => setIsAddYearOpen(true)}>เพิ่มปีภาษี</button>
           </div>
           <nav className="tabs" aria-label="เมนูหลัก">
-            <button type="button" disabled={busy} aria-pressed={tab === "worksheet"} onClick={() => handleTabChange("worksheet")}>คำนวณและวางแผน</button>
+            <button type="button" disabled={busy || session.storageSchemaVersion === 1} aria-pressed={tab === "worksheet"} onClick={() => handleTabChange("worksheet")}>คำนวณและวางแผน</button>
             <button type="button" disabled={busy} aria-pressed={tab === "documents"} onClick={() => handleTabChange("documents")}>เอกสาร</button>
             <button type="button" disabled={busy} aria-pressed={tab === "tools"} onClick={() => handleTabChange("tools")}>เครื่องมือ</button>
           </nav>
@@ -648,6 +672,7 @@ export function App() {
               bundle={pinned?.bundle ?? null}
               ruleDigest={pinned?.digest ?? null}
               disabled={session.readOnly || busy}
+              planDisabled={session.storageSchemaVersion < SCHEMA_VERSION}
               onUnsavedChange={handleUnsaved}
               onSavePlan={savePlan}
               onVerifyPlanEvidence={verifyPlanEvidence}
@@ -676,6 +701,7 @@ export function App() {
                       <div className={`inspector-dock ${preview ? "has-preview" : ""}`}>
                         <DocumentEditor
                           key={selected.id}
+                          supportsSubcategories={session.storageSchemaVersion !== 1}
                           record={selected}
                           attachments={allAttachments}
                           missingNames={missingForRecord(selected)}

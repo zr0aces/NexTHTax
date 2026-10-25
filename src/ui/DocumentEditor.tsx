@@ -8,6 +8,7 @@ import { formatPlainBaht } from "../transfer/csv";
 export const AUTOSAVE_MS = 500;
 
 interface Props {
+  supportsSubcategories?: boolean;
   record: RecordEntry;
   attachments: Attachment[];
   missingNames: string[];
@@ -86,7 +87,7 @@ export function parseForm(f: Form, attachmentIds: string[]): ParsedForm {
 }
 
 /** One record in edit. Parent keys this component by record ID so drafts never carry across records. */
-export function DocumentEditor({ record, attachments, missingNames, onSave, onUnsavedChange, onAddFile, onLink, onUnlink, onPreview }: Props) {
+export function DocumentEditor({ record, attachments, missingNames, onSave, onUnsavedChange, onAddFile, onLink, onUnlink, onPreview, supportsSubcategories = true }: Props) {
   const [form, setForm] = useState<Form>(() => toForm(record));
   const [dirty, setDirty] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -187,7 +188,7 @@ export function DocumentEditor({ record, attachments, missingNames, onSave, onUn
         </label>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: subcategoriesFor(form.category).length > 0 ? "1fr 1fr" : "1fr", gap: "12px" }}>
+      <div style={{ display: "grid", gridTemplateColumns: supportsSubcategories && subcategoriesFor(form.category).length > 0 ? "1fr 1fr" : "1fr", gap: "12px" }}>
         <label>
           หมวด
           <select value={form.category} onChange={(e) => update("category", e.target.value)}>
@@ -196,7 +197,7 @@ export function DocumentEditor({ record, attachments, missingNames, onSave, onUn
             ))}
           </select>
         </label>
-        {subcategoriesFor(form.category).length > 0 && (
+        {supportsSubcategories && subcategoriesFor(form.category).length > 0 && (
           <label>
             ประเภทเอกสารย่อย
             <select value={form.subcategory ?? ""} onChange={(e) => update("subcategory", (e.target.value || null) as SubcategoryId | null)} aria-invalid={!!errors.subcategory}>
