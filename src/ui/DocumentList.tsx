@@ -33,12 +33,19 @@ export function DocumentList({ records, selectedId, onSelect, onAdd, onTrash, on
   }, [records, query, category, subcategory, status, showTrash]);
 
   return (
-    <section aria-labelledby="docs-title" className="documents">
-      <h2 id="docs-title">{showTrash ? "ถังขยะ" : "รายการเอกสาร"}</h2>
+    <section aria-labelledby="docs-title" className="documents card">
+      <div className="section-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+        <h2 id="docs-title" style={{ margin: 0 }}>{showTrash ? "ถังขยะ" : `รายการเอกสาร (${records.filter(r => r.trashedAt === null).length})`}</h2>
+        <div className="actions" style={{ margin: 0 }}>
+          <button type="button" onClick={() => setShowTrash((v) => !v)}>{showTrash ? "กลับไปรายการ" : "ดูถังขยะ"}</button>
+          {!showTrash && <button type="button" className="btn-primary" onClick={onAdd}>+ เพิ่มรายการ</button>}
+        </div>
+      </div>
+
       <div className="toolbar">
         <label>
           ค้นหา
-          <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} />
+          <input type="search" role="searchbox" placeholder="ค้นหาชื่อ, ผู้ออก, หมวด..." value={query} onChange={(e) => setQuery(e.target.value)} />
         </label>
         <label>
           หมวด
@@ -68,26 +75,30 @@ export function DocumentList({ records, selectedId, onSelect, onAdd, onTrash, on
             ))}
           </select>
         </label>
-        <button type="button" onClick={() => setShowTrash((v) => !v)}>{showTrash ? "กลับไปรายการ" : "ดูถังขยะ"}</button>
-        {!showTrash && <button type="button" onClick={onAdd}>เพิ่มรายการ</button>}
       </div>
+
       {visible.length === 0 ? (
-        <p>ไม่มีรายการ</p>
+        <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--ink-muted)" }}>
+          <p>ไม่มีรายการ</p>
+          {!showTrash && (
+            <button type="button" className="btn-primary" onClick={onAdd}>เพิ่มรายการแรกสำหรับปีนี้</button>
+          )}
+        </div>
       ) : (
         <ul className="record-list">
           {visible.map((r) => (
-            <li key={r.id} aria-current={r.id === selectedId ? "true" : undefined}>
-              <button type="button" className="link" onClick={() => onSelect(r.id)}>
+            <li key={r.id} className="record-item" aria-current={r.id === selectedId ? "true" : undefined}>
+              <button type="button" className="link" onClick={() => onSelect(r.id)} style={{ flex: "1 1 auto" }}>
                 {r.date} · {r.title} · {categoryLabel(r.category)}{subcategoriesFor(r.category).length > 0 ? ` / ${subcategoryLabel(r.subcategory)}` : ""} · {STATUS_LABELS[r.status]}
                 {r.claimedAmountSatang !== null ? ` · ใช้สิทธิ ${formatSatang(r.claimedAmountSatang)} บาท` : ""}
               </button>
               {showTrash ? (
-                <>
+                <div className="actions" style={{ margin: 0 }}>
                   <button type="button" onClick={() => onRestore(r.id)}>กู้คืนจากถังขยะ</button>
-                  <button type="button" onClick={() => onPurge(r.id)}>ลบถาวร</button>
-                </>
+                  <button type="button" className="btn-danger" onClick={() => onPurge(r.id)}>ลบถาวร</button>
+                </div>
               ) : (
-                <button type="button" onClick={() => onTrash(r.id)}>ย้ายไปถังขยะ</button>
+                <button type="button" onClick={() => onTrash(r.id)} title="ย้ายไปถังขยะ">ย้ายไปถังขยะ</button>
               )}
             </li>
           ))}

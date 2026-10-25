@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import { readImageHeader } from "../domain/imageHeaders";
 
 /** Shows a JPEG/PNG only after the bounded header check passes. Object URL is revoked on cleanup. */
-export function ImagePreview({ bytes, mediaType }: { bytes: Uint8Array; mediaType: "image/jpeg" | "image/png" }) {
+export const ImagePreview = memo(function ImagePreview({ bytes, mediaType }: { bytes: Uint8Array; mediaType: "image/jpeg" | "image/png" }) {
   const header = useMemo(() => readImageHeader(bytes, mediaType), [bytes, mediaType]);
   const [url, setUrl] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
@@ -24,4 +24,4 @@ export function ImagePreview({ bytes, mediaType }: { bytes: Uint8Array; mediaTyp
       <img src={url} alt="ตัวอย่างไฟล์แนบ" onError={() => setFailed(true)} />
     </div>
   );
-}
+});

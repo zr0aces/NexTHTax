@@ -95,23 +95,52 @@ export function BackupPanel({ root, session, manifest, taxYear, canExport, onOpe
     });
 
   return (
-    <section aria-labelledby="backup-title" className="backup">
-      <h2 id="backup-title">สำรองข้อมูลและถ่ายโอน</h2>
-      <p className="warning">ควรสำรองข้อมูล ZIP เป็นระยะ และก่อนลบถาวรหรือย้ายโฟลเดอร์</p>
+    <section aria-labelledby="backup-title" className="backup card">
+      <h2 id="backup-title">สำรองข้อมูลและถ่ายโอนแฟ้มภาษี</h2>
+      <p className="warning">ควรสำรองข้อมูล ZIP เป็นระยะ และก่อนลบถาวรหรือย้ายโฟลเดอร์ ข้อมูลทั้งหมดอยู่บนเครื่องนี้เท่านั้น</p>
       {!canExport && <p className="warning">มีการแก้ไขที่ยังไม่บันทึก บันทึกหรือยกเลิกก่อนสำรองหรือส่งออก</p>}
-      <div className="actions">
-        <button type="button" disabled={busy || !canExport} onClick={() => void backupZip()}>สำรอง ZIP ทั้งหมด</button>
-        <button type="button" disabled={busy || !canExport} onClick={() => void exportJson()}>ส่งออก JSON (เฉพาะข้อมูล)</button>
-        <button type="button" disabled={busy || !canExport} onClick={() => void exportCsv()}>ส่งออก CSV ปี {taxYear}</button>
+
+      {/* Primary Vault Backup Card */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "16px", margin: "16px 0" }}>
+        <div className="card" style={{ background: "var(--orange-surface)", borderColor: "var(--primary-orange)" }}>
+          <h3 style={{ color: "var(--primary-orange-deep)", margin: "0 0 6px" }}>📦 สำรอง ZIP ทั้งหมด (สมบูรณ์)</h3>
+          <p className="muted" style={{ margin: "0 0 12px" }}>รวมข้อมูลภาษี ไฟล์แนบทั้งหมด กฎ และประวัติการกู้คืน พร้อมรหัสตรวจสอบ SHA-256</p>
+          <button type="button" className="btn-primary" disabled={busy || !canExport} onClick={() => void backupZip()}>
+            สำรอง ZIP ทั้งหมด
+          </button>
+        </div>
+
+        <div className="card">
+          <h3 style={{ margin: "0 0 6px" }}>📊 ส่งออกรายงาน CSV (ปี {taxYear})</h3>
+          <p className="muted" style={{ margin: "0 0 12px" }}>ตารางสรุปรายการเอกสาร ยอด และสถานะ นำไปเปิดใน Excel หรือสเปรดชีตได้</p>
+          <button type="button" disabled={busy || !canExport} onClick={() => void exportCsv()}>
+            ส่งออก CSV ปี {taxYear}
+          </button>
+        </div>
+
+        <div className="card">
+          <h3 style={{ margin: "0 0 6px" }}>📄 ส่งออก JSON (เฉพาะข้อมูล)</h3>
+          <p className="muted" style={{ margin: "0 0 12px" }}>เฉพาะโครงสร้างรายการ ไม่รวมไฟล์แนบ ไม่ใช่ข้อมูลสำรองที่สมบูรณ์</p>
+          <button type="button" disabled={busy || !canExport} onClick={() => void exportJson()}>
+            ส่งออก JSON (เฉพาะข้อมูล)
+          </button>
+        </div>
       </div>
-      <label>
-        กู้คืนจาก ZIP ไปยังโฟลเดอร์ว่างใหม่
-        <input type="file" accept=".zip,application/zip" disabled={busy} onChange={(e) => void restoreZip(e.target.files?.[0])} />
-      </label>
-      <label>
-        นำเข้า JSON ไปยังโฟลเดอร์ว่างใหม่ (ต้องเลือกไฟล์แนบใหม่ภายหลัง)
-        <input type="file" accept="application/json,.json" disabled={busy} onChange={(e) => void importJson(e.target.files?.[0])} />
-      </label>
+
+      <fieldset style={{ marginTop: "20px" }}>
+        <legend>กู้คืนและนำเข้าข้อมูล (ต้องเลือกโฟลเดอร์ว่างใหม่)</legend>
+        <p className="muted">เพื่อความปลอดภัยต่อข้อมูลเดิม การกู้คืนจะทำในโฟลเดอร์ว่างใหม่เท่านั้น โฟลเดอร์เดิมไม่ถูกเขียนทับ</p>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginTop: "10px" }}>
+          <label className="dropzone-box">
+            <span>กู้คืนจาก ZIP ไปยังโฟลเดอร์ว่างใหม่</span>
+            <input type="file" accept=".zip,application/zip" disabled={busy} onChange={(e) => void restoreZip(e.target.files?.[0])} />
+          </label>
+          <label className="dropzone-box">
+            <span>นำเข้า JSON ไปยังโฟลเดอร์ว่างใหม่ (ต้องเลือกไฟล์แนบใหม่ภายหลัง)</span>
+            <input type="file" accept="application/json,.json" disabled={busy} onChange={(e) => void importJson(e.target.files?.[0])} />
+          </label>
+        </div>
+      </fieldset>
     </section>
   );
 }

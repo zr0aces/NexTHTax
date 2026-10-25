@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import * as pdfjs from "pdfjs-dist";
 import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 
@@ -12,7 +12,7 @@ export const RENDER_TIMEOUT_MS = 10_000;
  * Canvas-only preview of one page at a time. No annotation, form, link or scripting layers are created,
  * so PDF actions are never executed and no document-driven network request is made.
  */
-export function PdfPreview({ bytes }: { bytes: Uint8Array }) {
+export const PdfPreview = memo(function PdfPreview({ bytes }: { bytes: Uint8Array }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [page, setPage] = useState(1);
   const [pageCount, setPageCount] = useState(0);
@@ -82,4 +82,4 @@ export function PdfPreview({ bytes }: { bytes: Uint8Array }) {
       )}
     </div>
   );
-}
+});

@@ -481,20 +481,46 @@ export function App() {
       setNotice("ส่งออกข้อมูลฉุกเฉินแล้ว: มีเฉพาะข้อมูลที่บันทึกล่าสุด ไม่รวมไฟล์แนบ ค่าที่กรอกไม่ถูกต้องถูกละไว้ และไม่ใช่ข้อมูลสำรองครบถ้วน");
     });
 
+  const handleTabChange = (nextTab: Tab) => {
+    if (nextTab === tab) return;
+    if (!confirmLeave()) return;
+    setTab(nextTab);
+  };
+
   return (
-    <div className="app">
-      <header className="app-header">
-        <h1>NexTHTax</h1>
-        {session && (
-          <button type="button" onClick={closeFolder}>ปิดโฟลเดอร์</button>
+    <div className="app dossier-app">
+      <header className="app-header vault-bar">
+        <div className="vault-brand">
+          <h1>
+            NexTHTax
+            <span className="vault-badge">Local Vault</span>
+          </h1>
+        </div>
+
+        {session && manifest && root && (
+          <div className="vault-meta">
+            <div className="folder-chip" title="โฟลเดอร์จัดเก็บข้อมูลบนเครื่อง">
+              <span className={`status-dot ${session.readOnly ? "ro" : "rw"}`} />
+              <span>{manifest.taxpayer.displayName || root.name || "โฟลเดอร์ภาษี"}</span>
+              <span className="sr-only">{session.readOnly ? "อ่านอย่างเดียว" : "แก้ไขได้"}</span>
+            </div>
+
+            <div className={`save-state-pill ${saveState}`} role="status" aria-live="polite">
+              <span className="dot" />
+              <span>{SAVE_LABEL[saveState]} {dirty ? "· มีการแก้ไขที่ยังไม่บันทึก" : ""}</span>
+            </div>
+
+            <button type="button" onClick={closeFolder}>ปิดโฟลเดอร์</button>
+          </div>
         )}
       </header>
-      <div role="status" aria-live="polite" className="notice">{notice}</div>
+
+      {notice && <div role="status" aria-live="polite" className="notice">{notice}</div>}
       {offlineReady && <p className="notice">พร้อมใช้งานออฟไลน์แล้ว (เฉพาะแอปและกฎที่แนบมา ไม่รวมไฟล์ของคุณ)</p>}
       {updateApply && (
         <div role="alert" className="update">
           <p>มีเวอร์ชันแอปใหม่ จะอัปเดตเมื่อบันทึกเสร็จและไม่มีรายการที่ยังไม่ได้บันทึก</p>
-          <button type="button" onClick={applyUpdate}>อัปเดตแอป</button>
+          <button type="button" className="btn-primary" onClick={applyUpdate}>อัปเดตแอป</button>
         </div>
       )}
 
@@ -544,9 +570,9 @@ export function App() {
           {missing.length > 0 && <p className="warning">ไฟล์แนบที่หายหรือไม่ตรงกับข้อมูล {missing.length} ไฟล์</p>}
           {pending.length > 0 && <p className="warning">มีไฟล์ candidate ค้างจากการบันทึกที่ไม่สมบูรณ์ ({pending.length} ไฟล์)</p>}
           <nav className="tabs" aria-label="เมนูหลัก">
-            <button type="button" aria-pressed={tab === "documents"} onClick={() => setTab("documents")}>เอกสารและสรุป</button>
-            <button type="button" aria-pressed={tab === "rules"} onClick={() => setTab("rules")}>กฎภาษี</button>
-            <button type="button" aria-pressed={tab === "backup"} onClick={() => setTab("backup")}>สำรองข้อมูล</button>
+            <button type="button" aria-pressed={tab === "documents"} onClick={() => handleTabChange("documents")}>เอกสารและสรุป</button>
+            <button type="button" aria-pressed={tab === "rules"} onClick={() => handleTabChange("rules")}>กฎภาษี</button>
+            <button type="button" aria-pressed={tab === "backup"} onClick={() => handleTabChange("backup")}>สำรองข้อมูล</button>
           </nav>
           {tab === "documents" && (
             <>
@@ -583,32 +609,45 @@ export function App() {
                   onRestore={(id) => void restoreRecord(id)}
                   onPurge={(id) => void purgeRecord(id)}
                 />
-                {selected && (
-                  <DocumentEditor
-                    key={selected.id}
-                    record={selected}
-                    attachments={allAttachments}
-                    missingNames={missingForRecord(selected)}
-                    onSave={(draft) => saveRecord(selected.id, draft)}
-                    onUnsavedChange={handleUnsaved}
-                    onAddFile={addFile}
-                    onLink={(attId) => linkAttachment(selected, attId)}
-                    onUnlink={(attId) => unlinkAttachment(selected, attId)}
-                    onPreview={(attId) => void previewAttachment(attId)}
-                  />
-                )}
-              </div>
-              {preview && (
-                <section aria-labelledby="preview-title" className="preview-panel">
-                  <h2 id="preview-title">ตัวอย่าง: {preview.attachment.displayName}</h2>
-                  <button type="button" onClick={() => setPreview(null)}>ปิดตัวอย่าง</button>
-                  {preview.attachment.mediaType === "application/pdf" ? (
-                    <PdfPreview bytes={preview.bytes} />
+                <div className="inspector-container">
+                  {selected ? (
+                    <div className={`inspector-dock ${preview ? "has-preview" : ""}`}>
+                      <DocumentEditor
+                        key={selected.id}
+                        record={selected}
+                        attachments={allAttachments}
+                        missingNames={missingForRecord(selected)}
+                        onSave={(draft) => saveRecord(selected.id, draft)}
+                        onUnsavedChange={handleUnsaved}
+                        onAddFile={addFile}
+                        onLink={(attId) => linkAttachment(selected, attId)}
+                        onUnlink={(attId) => unlinkAttachment(selected, attId)}
+                        onPreview={(attId) => void previewAttachment(attId)}
+                      />
+                      {preview && (
+                        <section aria-labelledby="preview-title" className="preview-panel slip-viewer">
+                          <div className="slip-viewer-header">
+                            <h2 id="preview-title" style={{ fontSize: "14px", margin: 0, color: "#fff" }}>
+                              ตัวอย่าง: {preview.attachment.displayName}
+                            </h2>
+                            <button type="button" onClick={() => setPreview(null)}>✕ ปิดตัวอย่าง</button>
+                          </div>
+                          {preview.attachment.mediaType === "application/pdf" ? (
+                            <PdfPreview bytes={preview.bytes} />
+                          ) : (
+                            <ImagePreview bytes={preview.bytes} mediaType={preview.attachment.mediaType === "image/png" ? "image/png" : "image/jpeg"} />
+                          )}
+                        </section>
+                      )}
+                    </div>
                   ) : (
-                    <ImagePreview bytes={preview.bytes} mediaType={preview.attachment.mediaType === "image/png" ? "image/png" : "image/jpeg"} />
+                    <div className="card" style={{ padding: "40px 24px", textAlign: "center", color: "var(--ink-muted)" }}>
+                      <p style={{ fontSize: "16px", fontWeight: 600, color: "var(--ink-dark)" }}>ยังไม่ได้เลือกรายการ</p>
+                      <p>เลือกรายการเอกสารจากรายการทางซ้ายเพื่อตรวจสอบ หรือคลิก "+ เพิ่มรายการ" เพื่อเริ่มบันทึก</p>
+                    </div>
                   )}
-                </section>
-              )}
+                </div>
+              </div>
             </>
           )}
           {tab === "rules" && (

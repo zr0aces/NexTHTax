@@ -20,62 +20,121 @@ const DISCLAIMER =
 export function YearOverview({ manifest, taxYear, years, pinned, onYearChange }: Props) {
   const summary = summarizeYear(manifest.records, taxYear);
   const yearEntry = manifest.years[String(taxYear)];
+
+  const totalCount = summary.ok
+    ? summary.counts.reviewed + summary.counts["waiting-review"] + summary.counts["waiting-document"]
+    : 0;
+  const reviewedPct = summary.ok && totalCount > 0 ? (summary.counts.reviewed / totalCount) * 100 : 0;
+  const waitingReviewPct = summary.ok && totalCount > 0 ? (summary.counts["waiting-review"] / totalCount) * 100 : 0;
+  const waitingDocPct = summary.ok && totalCount > 0 ? (summary.counts["waiting-document"] / totalCount) * 100 : 0;
+
   return (
-    <section aria-labelledby="overview-title" className="overview">
-      <h2 id="overview-title">
-        สรุปปีภาษี {taxYear} (พ.ศ. {buddhistYear(taxYear)})
-      </h2>
-      <label>
-        ปีภาษี
-        <select value={taxYear} onChange={(e) => onYearChange(Number(e.target.value))}>
-          {years.map((y) => (
-            <option key={y} value={y}>
-              {y} (พ.ศ. {buddhistYear(y)})
-            </option>
-          ))}
-        </select>
-      </label>
+    <section aria-labelledby="overview-title" className="overview card">
+      <div className="overview-header">
+        <h2 id="overview-title">
+          สรุปปีภาษี {taxYear} (พ.ศ. {buddhistYear(taxYear)})
+        </h2>
+        <label>
+          ปีภาษี
+          <select value={taxYear} onChange={(e) => onYearChange(Number(e.target.value))}>
+            {years.map((y) => (
+              <option key={y} value={y}>
+                {y} (พ.ศ. {buddhistYear(y)})
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+
       {!summary.ok ? (
-        <p role="alert" className="error">ยอดรวมเกินช่วงที่ระบบคำนวณได้อย่างแม่นยำ จึงไม่แสดงยอดรวม</p>
+        <p role="alert" className="error alert-danger">ยอดรวมเกินช่วงที่ระบบคำนวณได้อย่างแม่นยำ จึงไม่แสดงยอดรวม</p>
       ) : (
-        <dl className="totals">
-          <dt>ยอดตามหลักฐานเอกสาร (บาท)</dt>
-          <dd>{formatSatang(summary.evidenceTotal)}</dd>
-          <dt>ยอดที่คุณเลือกใช้สิทธิ (ก่อนกฎ, บาท)</dt>
-          <dd>{formatSatang(summary.claimedTotal)}</dd>
-          <dt>ยอดที่เลือกใช้สิทธิและตรวจทานแล้ว (บาท)</dt>
-          <dd>{formatSatang(summary.reviewedClaimedTotal)}</dd>
-          <dt>หัก ณ ที่จ่ายที่บันทึกไว้ (แสดงแยก ไม่ใช่ค่าลดหย่อน, บาท)</dt>
-          <dd>{formatSatang(summary.withheldTotal)}</dd>
-          <dt>รายการที่ยังไม่ระบุยอดใช้สิทธิ</dt>
-          <dd>{summary.unknownClaimCount} รายการ</dd>
-          <dt>รอเอกสาร / รอตรวจทาน / ตรวจทานแล้ว</dt>
-          <dd>
-            {summary.counts["waiting-document"]} / {summary.counts["waiting-review"]} / {summary.counts.reviewed}
-          </dd>
-          <dt>ไม่นับในสรุป / อยู่ในถังขยะ</dt>
-          <dd>
-            {summary.excludedCount} / {summary.trashedCount}
-          </dd>
-        </dl>
+        <>
+          {/* Visual KPI Cards */}
+          <div className="kpi-stack" aria-label="ยอดรวมสำคัญ">
+            <div className="kpi-card">
+              <div className="kpi-label">ยอดตามหลักฐานเอกสาร (บาท)</div>
+              <div className="kpi-value">{formatSatang(summary.evidenceTotal)}</div>
+            </div>
+            <div className="kpi-card highlight">
+              <div className="kpi-label">ยอดที่ตรวจทานแล้ว (ใช้สิทธิ, บาท)</div>
+              <div className="kpi-value">{formatSatang(summary.reviewedClaimedTotal)}</div>
+              <div className="muted">จากยอดขอใช้สิทธิก่อนกฎ: {formatSatang(summary.claimedTotal)} บาท</div>
+            </div>
+            <div className="kpi-card">
+              <div className="kpi-label">หัก ณ ที่จ่ายที่บันทึกไว้ (50 ทวิ, บาท)</div>
+              <div className="kpi-value">{formatSatang(summary.withheldTotal)}</div>
+              <div className="muted">แสดงแยก ไม่ใช่ค่าลดหย่อน เป็นภาษีจ่ายล่วงหน้า</div>
+            </div>
+          </div>
+
+          {/* Verification Progress Meter */}
+          {totalCount > 0 && (
+            <div className="verification-gauge" aria-label="ความคืบหน้าการตรวจทาน">
+              <div className="kpi-label">
+                ความคืบหน้า: ตรวจทานแล้ว {summary.counts.reviewed} / รอตรวจ {summary.counts["waiting-review"]} / รอเอกสาร {summary.counts["waiting-document"]} รายการ
+              </div>
+              <div className="gauge-track">
+                <div className="gauge-seg-reviewed" style={{ width: `${reviewedPct}%` }} title={`ตรวจทานแล้ว: ${summary.counts.reviewed}`} />
+                <div className="gauge-seg-waiting-review" style={{ width: `${waitingReviewPct}%` }} title={`รอตรวจทาน: ${summary.counts["waiting-review"]}`} />
+                <div className="gauge-seg-waiting-doc" style={{ width: `${waitingDocPct}%` }} title={`รอเอกสาร: ${summary.counts["waiting-document"]}`} />
+              </div>
+            </div>
+          )}
+
+          {/* Tabular totals for accessibility & test contracts */}
+          <dl className="totals">
+            <dt>ยอดตามหลักฐานเอกสาร (บาท)</dt>
+            <dd>{formatSatang(summary.evidenceTotal)}</dd>
+            <dt>ยอดที่คุณเลือกใช้สิทธิ (ก่อนกฎ, บาท)</dt>
+            <dd>{formatSatang(summary.claimedTotal)}</dd>
+            <dt>ยอดที่เลือกใช้สิทธิและตรวจทานแล้ว (บาท)</dt>
+            <dd>{formatSatang(summary.reviewedClaimedTotal)}</dd>
+            <dt>หัก ณ ที่จ่ายที่บันทึกไว้ (แสดงแยก ไม่ใช่ค่าลดหย่อน, บาท)</dt>
+            <dd>{formatSatang(summary.withheldTotal)}</dd>
+            <dt>รายการที่ยังไม่ระบุยอดใช้สิทธิ</dt>
+            <dd>{summary.unknownClaimCount} รายการ</dd>
+            <dt>รอเอกสาร / รอตรวจทาน / ตรวจทานแล้ว</dt>
+            <dd>
+              {summary.counts["waiting-document"]} / {summary.counts["waiting-review"]} / {summary.counts.reviewed}
+            </dd>
+            <dt>ไม่นับในสรุป / อยู่ในถังขยะ</dt>
+            <dd>
+              {summary.excludedCount} / {summary.trashedCount}
+            </dd>
+          </dl>
+        </>
       )}
-      <section aria-labelledby="subcategories-title">
+
+      <section aria-labelledby="subcategories-title" className="subcategories-section">
         <h3 id="subcategories-title">รวบรวมกองทุนและประกันแยกประเภท</h3>
-        <p>รายการย่อยเป็นส่วนหนึ่งของยอดหมวดหลัก ไม่บวกซ้ำกับยอดรวม และไม่ใช่ยอดสิทธิที่กฎหมายรับรอง</p>
+        <p className="muted">รายการย่อยเป็นส่วนหนึ่งของยอดหมวดหลัก ไม่บวกซ้ำกับยอดรวม และไม่ใช่ยอดสิทธิที่กฎหมายรับรอง</p>
         {summarizeSubcategories(manifest.records, taxYear).map((group) => (
-          <div key={group.parent}>
+          <div key={group.parent} className="subtype-group">
             <h4>{categoryLabel(group.parent)}</h4>
             <table>
               <caption>ยอดปี {taxYear} · {categoryLabel(group.parent)}</caption>
-              <thead><tr><th scope="col">ประเภท</th><th scope="col">ยอดหลักฐาน</th><th scope="col">ยอดที่เลือกใช้สิทธิ</th><th scope="col">ตรวจทานแล้ว</th><th scope="col">ยังไม่ทราบยอด</th><th scope="col">ไม่นับ / ถังขยะ</th></tr></thead>
+              <thead>
+                <tr>
+                  <th scope="col">ประเภท</th>
+                  <th scope="col">ยอดหลักฐาน</th>
+                  <th scope="col">ยอดที่เลือกใช้สิทธิ</th>
+                  <th scope="col">ตรวจทานแล้ว</th>
+                  <th scope="col">ยังไม่ทราบยอด</th>
+                  <th scope="col">ไม่นับ / ถังขยะ</th>
+                </tr>
+              </thead>
               <tbody>
                 <SubtypeRow label="รวมหมวดหลัก" summary={group.summary} />
-                {group.children.map((row) => <SubtypeRow key={row.subcategory ?? "unclassified"} label={subcategoryLabel(row.subcategory)} summary={row.summary} />)}
+                {group.children.map((row) => (
+                  <SubtypeRow key={row.subcategory ?? "unclassified"} label={subcategoryLabel(row.subcategory)} summary={row.summary} />
+                ))}
               </tbody>
             </table>
           </div>
         ))}
       </section>
+
       <h3>กฎที่ใช้กับปีนี้</h3>
       {pinned ? (
         <p>
@@ -87,13 +146,17 @@ export function YearOverview({ manifest, taxYear, years, pinned, onYearChange }:
       <ul className="coverage">
         {CATEGORIES.filter((c) => c.group === "deduction" || c.group === "donation").map((c) => (
           <li key={c.id}>
-            {categoryLabel(c.id)}: {coverageText(coverageFor(pinned, c.id))}
+            <span>{categoryLabel(c.id)}</span>
+            <span className="muted">{coverageText(coverageFor(pinned, c.id))}</span>
           </li>
         ))}
       </ul>
       <p className="disclaimer">{DISCLAIMER}</p>
       <p className="muted">ข้อมูลปีนี้: {yearEntry ? "มีการบันทึกการตั้งค่าปี" : "ยังไม่มีการตั้งค่าปี"}</p>
-      <button type="button" onClick={() => window.print()}>พิมพ์หรือบันทึกเป็น PDF</button>
+      <div className="actions">
+        <button type="button" onClick={() => window.print()}>พิมพ์หรือบันทึกเป็น PDF</button>
+      </div>
+
       <section className="print-only" aria-label="มุมมองสำหรับพิมพ์">
         <h2>รายงานสรุปปีภาษี {taxYear}</h2>
         <p>{DISCLAIMER}</p>
@@ -105,9 +168,22 @@ export function YearOverview({ manifest, taxYear, years, pinned, onYearChange }:
 }
 
 function SubtypeRow({ label, summary }: { label: string; summary: SummaryResult }) {
-  return <tr><th scope="row">{label}</th>{summary.ok ? <>
-    <td>{formatSatang(summary.evidenceTotal)}</td><td>{formatSatang(summary.claimedTotal)}</td><td>{formatSatang(summary.reviewedClaimedTotal)}</td><td>{summary.unknownClaimCount}</td><td>{summary.excludedCount} / {summary.trashedCount}</td>
-  </> : <td colSpan={5}>ยอดเกินช่วงที่คำนวณได้ ไม่แสดงยอดรวม</td>}</tr>;
+  return (
+    <tr>
+      <th scope="row">{label}</th>
+      {summary.ok ? (
+        <>
+          <td>{formatSatang(summary.evidenceTotal)}</td>
+          <td>{formatSatang(summary.claimedTotal)}</td>
+          <td>{formatSatang(summary.reviewedClaimedTotal)}</td>
+          <td>{summary.unknownClaimCount}</td>
+          <td>{summary.excludedCount} / {summary.trashedCount}</td>
+        </>
+      ) : (
+        <td colSpan={5}>ยอดเกินช่วงที่คำนวณได้ ไม่แสดงยอดรวม</td>
+      )}
+    </tr>
+  );
 }
 
 function coverageText(status: "verified" | "partial" | "unavailable"): string {
