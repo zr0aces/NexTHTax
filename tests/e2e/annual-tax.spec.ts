@@ -1,3 +1,4 @@
+import { annualInputs, annualManifest } from "../fixtures/annualTax";
 import { planFixture } from "../fixtures/plan";
 import { expect, test, type Page } from "@playwright/test";
 async function data(page: Page) {
@@ -97,4 +98,42 @@ test("keeps an existing 2026 health plan accessible without flattening its basel
   expect(after.schemaVersion).toBe(4);
   expect(after.years["2026"].plan.actualAmountSatang).toBe(800000);
   expect(after.years["2026"].taxInputs).toEqual(y.taxInputs);
+});
+
+test("opts into a clearly labeled simulation without changing rules, then resets on editing and reopen", async ({ page }) => {
+  await page.getByRole("button", { name: "ปิดโฟลเดอร์", exact: true }).click();
+  const m = annualManifest(annualInputs()); m.records = []; m.attachments = {};
+  await page.evaluate(async (manifest) => {
+    const dir = await (window as unknown as { showDirectoryPicker: () => Promise<FileSystemDirectoryHandle> }).showDirectoryPicker();
+    const w = await (await dir.getFileHandle("data.json")).createWritable(); await w.write(JSON.stringify(manifest)); await w.close();
+  }, m);
+  await page.getByRole("button", { name: "เปิดโฟลเดอร์ข้อมูลที่มีอยู่" }).click();
+  await page.getByRole("button", { name: "คำนวณภาษี", exact: true }).click();
+  const optIn = page.getByRole("checkbox", { name: /ฉันยอมรับสมมติฐานและเปิดโหมดจำลอง/ });
+  await expect(optIn).toBeDisabled();
+  await page.getByRole("button", { name: "ยืนยันข้อมูลที่บันทึกแล้ว", exact: true }).click();
+  await expect(optIn).toBeEnabled(); await expect(optIn).not.toBeChecked();
+  const before = await data(page);
+  await optIn.check();
+  await expect(page.getByText("จำลอง: ประมาณการจ่ายเพิ่ม", { exact: true })).toBeVisible();
+  await expect(page.locator(".annual-result")).toContainText("1,500.00 บาท");
+  await expect(page.getByText(/ตัวเลขทั้งหมดด้านล่างเป็นผลจำลอง ไม่ใช่ยอดยื่นจริง/)).toBeVisible();
+  expect(await data(page)).toEqual(before);
+  await page.getByText("ตารางสมมติฐานและแหล่งอ้างอิงของโหมดจำลอง", { exact: true }).click();
+  await expect(page.getByText(/ชีวิตและสุขภาพรวมไม่เกิน 100,000.00/)).toBeVisible();
+  await expect(page.getByText(/ประกันสังคมสมมติ ม.33 เต็มปี/)).toBeVisible();
+  await page.setViewportSize({ width: 375, height: 812 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: "test-results/tax-simulation-mobile.png", fullPage: true });
+  await page.getByLabel("เงินได้ทั้งปี (บาท)").fill("700000");
+  await expect(optIn).not.toBeChecked(); await expect(optIn).toBeDisabled();
+  await expect(page.getByText("จำลอง: ประมาณการจ่ายเพิ่ม", { exact: true })).toHaveCount(0);
+  await page.getByLabel("เงินได้ทั้งปี (บาท)").fill("600000");
+  // Saving a changed draft still requires re-confirmation, not a remembered opt-in.
+  await page.getByRole("button", { name: "บันทึกข้อมูลภาษี", exact: true }).click();
+  await expect(page.getByText("บันทึกข้อมูลภาษีแล้ว กรุณาตรวจและยืนยันข้อมูลล่าสุด", { exact: true })).toBeVisible();
+  await page.reload(); await page.getByRole("button", { name: "เปิดโฟลเดอร์ข้อมูลที่มีอยู่" }).click();
+  await page.getByRole("button", { name: "คำนวณภาษี", exact: true }).click();
+  await expect(optIn).not.toBeChecked(); await expect(optIn).toBeDisabled();
+  expect((await data(page)).years["2026"].rulesDigest).toBeNull();
 });

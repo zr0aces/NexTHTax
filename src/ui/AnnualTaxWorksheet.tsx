@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { categoryLabel, subcategoriesFor, subcategoryLabel } from "../domain/documents";
 import { parseBahtInput, formatSatang } from "../domain/money";
-import { annualInputReasons, annualSourceProjection, calculateAnnualTax, emptyAnnualInputs } from "../domain/annualTax";
+import { annualInputReasons, annualSourceProjection, calculateAnnualSimulation, calculateAnnualTax, emptyAnnualInputs } from "../domain/annualTax";
 import { confirmationState, worksheetProjection, taxInputsSchema, type TaxInputs } from "../domain/taxInputs";
 import type { AnyRuleBundle } from "../domain/rules";
 import type { Manifest, RecordEntry } from "../domain/schema";
+import { SIMULATION_WARNING, SIMULATION_VERSION, SIMULATION_SOURCES, simulationAssumptions } from "../domain/taxSimulation";
 import { sha256Hex } from "../storage/hash";
 
 type Deduction = TaxInputs["deductions"][number];
@@ -33,6 +34,7 @@ export function AnnualTaxWorksheet({ manifest, taxYear, bundle, ruleDigest, trus
   const [message, setMessage] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [sourceId, setSourceId] = useState("");
+  const [simulationKey, setSimulationKey] = useState<string | null>(null);
   // Bind asynchronous digest results to exact synchronous input identity. Old hashes can never authorize a new render.
   const hashKey = JSON.stringify([saved, annualSourceProjection(manifest.records, taxYear), taxYear, ruleDigest]);
   const [digests, setDigests] = useState<{ key: string; sources: string; worksheet: string } | null>(null);
@@ -53,7 +55,13 @@ export function AnnualTaxWorksheet({ manifest, taxYear, bundle, ruleDigest, trus
   useEffect(() => { onUnsavedChange(dirty); return () => onUnsavedChange(false); }, [dirty, onUnsavedChange]);
   const currentDigests = digests?.key === hashKey ? digests : null;
   const confirmed = !dirty && currentDigests !== null && confirmationState(saved, { sourcesDigest: currentDigests.sources, worksheetDigest: currentDigests.worksheet }) === "confirmed";
-  const result = calculateAnnualTax({ taxYear, inputs: saved, records: manifest.records, bundle, trusted: trustedRules, confirmed });
+  // Opt-in is temporary and tied to exactly these saved facts, sources and pinned rules.
+  // The synchronous comparison hides old results before a replacement hash/effect can finish.
+  useEffect(() => { setSimulationKey(null); }, [hashKey, dirty]);
+  const simulationEnabled = simulationKey === hashKey && confirmed && !pending;
+  const result = simulationEnabled
+    ? calculateAnnualSimulation({ taxYear, inputs: saved, records: manifest.records, confirmed })
+    : calculateAnnualTax({ taxYear, inputs: saved, records: manifest.records, bundle, trusted: trustedRules, confirmed });
   const update = (change: (input: TaxInputs) => void) => setDraft((d) => {
     const input = structuredClone(d.input); change(input);
     input.confirmedSourcesDigest = null; input.confirmedWorksheetDigest = null;
@@ -118,7 +126,7 @@ export function AnnualTaxWorksheet({ manifest, taxYear, bundle, ruleDigest, trus
   const complete = draft.input.incomeComplete === "yes" && draft.input.withholdingComplete === "yes" && draft.input.deductionsComplete === "yes" && draft.input.finalTaxGroupsComplete === "yes";
   return <section className="card worksheet-card" aria-labelledby="annual-title">
     <h2 id="annual-title">คำนวณภาษี ปี {taxYear + 543}</h2>
-    <p className="warning">ประมาณการเท่านั้น ไม่ใช่การยื่นแบบ แสดงยอดจ่ายเพิ่มหรือขอคืนเมื่อข้อมูลครบและกฎปีนี้ผ่านการตรวจรับแล้วเท่านั้น</p>
+    <p className="warning">ประมาณการเท่านั้น ไม่ใช่การยื่นแบบ โหมดปกติต้องใช้กฎที่ตรวจรับแล้ว หรือเลือกเปิดโหมดจำลองตามสมมติฐานด้านล่าง ห้ามนำผลจำลองไปยื่นภาษี</p>
     <p>รองรับผู้มีรายได้เฉพาะเงินเดือน โสด มีถิ่นที่อยู่ในไทย อายุต่ำกว่า 65 ปี ไม่เป็นคนพิการ และไม่มีค่าลดหย่อนผู้อยู่ในอุปการะ</p>
     {!supportsAnnual && <div className="notice"><p>แก้ข้อมูลเดิมในรูปแบบเดิมได้ การเพิ่มรายละเอียดที่รูปแบบเดิมเก็บไม่ได้ต้องสร้างสำเนา ต้นฉบับไม่ถูกแก้ไข</p><button type="button" disabled={disabled || pending || dirty} onClick={onUpgrade}>สร้างสำเนาสำหรับคุณสมบัติใหม่</button><p>หากมีงานค้าง ให้บันทึกข้อมูลที่รูปแบบเดิมรองรับก่อน หรือส่งออก/จดข้อมูลไว้ก่อนออกจากหน้านี้</p></div>}
     <fieldset disabled={disabled || pending} className="annual-form">
@@ -172,9 +180,22 @@ export function AnnualTaxWorksheet({ manifest, taxYear, bundle, ruleDigest, trus
     {message && <p role="status">{message}</p>}
     <p role="status">{confirmed ? "ยืนยันแล้วตามข้อมูลที่บันทึก" : saved?.confirmedWorksheetDigest ? "ข้อมูลหรือเอกสารเปลี่ยน ต้องตรวจและยืนยันใหม่" : "ยังไม่ได้ยืนยันข้อมูลล่าสุด"}</p>
     <h3>3. ผลประมาณการ</h3>
+    <section className="notice simulation-panel" aria-labelledby="simulation-title">
+      <h4 id="simulation-title">จำลองด้วยกฎที่ยังไม่ตรวจรับ</h4>
+      <p className="warning">{SIMULATION_WARNING}</p>
+      <details className="task-details">
+        <summary>ตารางสมมติฐานและแหล่งอ้างอิงของโหมดจำลอง</summary>
+        <p>ตาราง {SIMULATION_VERSION} · สำหรับปีภาษี 2569 เท่านั้น ไม่เปลี่ยนกฎที่ปักไว้ ไม่รับรองสิทธิ และไม่ส่งข้อมูลออกจากเครื่อง</p>
+        <ul>{simulationAssumptions().map((assumption) => <li key={assumption}>{assumption}</li>)}</ul>
+        <ul>{SIMULATION_SOURCES.map((source) => <li key={source.url}><a href={source.url} target="_blank" rel="noopener noreferrer no-referrer">{source.title}</a></li>)}</ul>
+      </details>
+      <label><input type="checkbox" checked={simulationEnabled} disabled={disabled || pending || !confirmed} onChange={(e) => setSimulationKey(e.target.checked ? hashKey : null)} />ฉันยอมรับสมมติฐานและเปิดโหมดจำลอง (ห้ามใช้ยื่นภาษี)</label>
+      {!confirmed && <p>บันทึกและยืนยันข้อมูลล่าสุดก่อนเปิดจำลอง การแก้ข้อมูล เอกสาร กฎ หรือเปิดหน้านี้ใหม่จะปิดโหมดจำลอง</p>}
+    </section>
+    {result.status === "complete" && result.basis === "simulation" && <p role="status" className="warning">{SIMULATION_WARNING} · ตาราง {result.rulesVersion} · ตัวเลขทั้งหมดด้านล่างเป็นผลจำลอง ไม่ใช่ยอดยื่นจริง</p>}
     {result.status === "blocked" ? <div role="status"><p>ยังไม่แสดงยอดภาษี จ่ายเพิ่ม หรือขอคืน:</p><ul>{result.reasons.map((r) => <li key={r}>{r}</li>)}</ul></div> : <>
-      <table><caption>ยอดที่เลือกและยอดใช้สิทธิหลังตรวจเพดาน (บาท)</caption><thead><tr><th>รายการ</th><th>ยอดขอใช้</th><th>ยอดใช้สิทธิ</th><th>เหตุผล</th></tr></thead><tbody>{result.lines.map((l, i) => <tr key={i}><th scope="row">{l.label}</th><td>{formatSatang(l.requestedSatang)}</td><td>{formatSatang(l.allowedSatang)}</td><td>{l.reason}</td></tr>)}</tbody></table>
-      <dl className="annual-result">{[["เงินเดือนรวม", result.salarySatang], ["ค่าใช้จ่ายเงินเดือนตามกฎ", result.expenseSatang], ["ค่าลดหย่อนส่วนตัวตามกฎ", result.personalAllowanceSatang], ["เงินได้สุทธิ", result.taxableSatang], ["ภาษีประมาณการทั้งปี", result.taxSatang], ["ภาษีหัก ณ ที่จ่าย", result.withheldSatang], ["ประมาณการจ่ายเพิ่ม", result.payableSatang], ["ประมาณการขอคืน", result.refundSatang]].map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{formatSatang(Number(value))} บาท</dd></div>)}</dl>
+      <table><caption>{result.basis === "simulation" ? "ยอดจำลองตามเพดานสมมติ (บาท)" : "ยอดที่เลือกและยอดใช้สิทธิหลังตรวจเพดาน (บาท)"}</caption><thead><tr><th>รายการ</th><th>ยอดขอใช้</th><th>ยอดใช้สิทธิ</th><th>เหตุผล</th></tr></thead><tbody>{result.lines.map((l, i) => <tr key={i}><th scope="row">{l.label}</th><td>{formatSatang(l.requestedSatang)}</td><td>{formatSatang(l.allowedSatang)}</td><td>{l.reason}</td></tr>)}</tbody></table>
+      <dl className="annual-result">{[["เงินเดือนรวม", result.salarySatang], ["ค่าใช้จ่ายเงินเดือนตามกฎ", result.expenseSatang], ["ค่าลดหย่อนส่วนตัวตามกฎ", result.personalAllowanceSatang], ["เงินได้สุทธิ", result.taxableSatang], ["ภาษีประมาณการทั้งปี", result.taxSatang], ["ภาษีหัก ณ ที่จ่าย", result.withheldSatang], ["ประมาณการจ่ายเพิ่ม", result.payableSatang], ["ประมาณการขอคืน", result.refundSatang]].map(([label, value]) => <div key={label}><dt>{result.basis === "simulation" ? "จำลอง: " : ""}{label}</dt><dd>{formatSatang(Number(value))} บาท</dd></div>)}</dl>
     </>}
   </section>;
 }

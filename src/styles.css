@@ -1091,3 +1091,6 @@ dialog.vault-modal::backdrop {
   .annual-form .worksheet-grid { grid-template-columns: minmax(0, 1fr); }
   .worksheet-card table { display: block; max-width: 100%; overflow-x: auto; }
 }
+
+/* Unlike a short alert strip, simulation consent is a vertical reading panel. */
+.simulation-panel { display: block; overflow-wrap: anywhere; }

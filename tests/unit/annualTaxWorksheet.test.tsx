@@ -82,3 +82,50 @@ describe("explicit annual worksheet", () => {
     expect(screen.queryByText("ประมาณการจ่ายเพิ่ม", { exact: true })).toBeNull();
   });
 });
+
+describe("simulation opt-in", () => {
+  async function confirmedManifest() {
+    const t = annualInputs(), m = annualManifest(t);
+    const sources = await sha256Hex(new TextEncoder().encode(annualSourceProjection(m.records, 2026)));
+    t.confirmedSourcesDigest = sources;
+    t.confirmedWorksheetDigest = await sha256Hex(new TextEncoder().encode(worksheetProjection(t, { taxYear: 2026, sourcesDigest: sources, ruleDigest: null, engineVersion: 2 })));
+    return m;
+  }
+  it("starts off, warns explicitly, shows simulated totals only after opt-in, without writes", async () => {
+    const p = props(await confirmedManifest()), before = JSON.stringify(p.manifest);
+    render(<AnnualTaxWorksheet {...p} />);
+    const checkbox = screen.getByRole("checkbox", { name: /ฉันยอมรับสมมติฐานและเปิดโหมดจำลอง/ });
+    await waitFor(() => expect(checkbox).toBeEnabled()); expect(checkbox).not.toBeChecked();
+    expect(screen.queryByText("จำลอง: ประมาณการจ่ายเพิ่ม", { exact: true })).toBeNull();
+    fireEvent.click(checkbox);
+    expect(screen.getByText("จำลอง: ประมาณการจ่ายเพิ่ม", { exact: true })).toBeVisible();
+    expect(screen.getByText(/ตัวเลขทั้งหมดด้านล่างเป็นผลจำลอง ไม่ใช่ยอดยื่นจริง/)).toBeVisible();
+    expect(screen.getByText(/ตารางสมมติฐานและแหล่งอ้างอิง/).closest("details")).not.toHaveAttribute("open");
+    expect(p.onSave).not.toHaveBeenCalled(); expect(JSON.stringify(p.manifest)).toBe(before);
+    fireEvent.click(checkbox); expect(screen.queryByText("จำลอง: ประมาณการจ่ายเพิ่ม", { exact: true })).toBeNull();
+  });
+  it("resets opt-in and hides totals on source, rule, draft changes and remount", async () => {
+    const m = await confirmedManifest(), p = props(m), view = render(<AnnualTaxWorksheet {...p} />);
+    const checkbox = screen.getByRole("checkbox", { name: /ฉันยอมรับสมมติฐานและเปิดโหมดจำลอง/ });
+    await waitFor(() => expect(checkbox).toBeEnabled()); fireEvent.click(checkbox);
+    const changed = structuredClone(m); changed.records[0]!.notes = "changed evidence context";
+    view.rerender(<AnnualTaxWorksheet {...p} manifest={changed} />);
+    expect(checkbox).not.toBeChecked(); expect(screen.queryByText("จำลอง: ประมาณการจ่ายเพิ่ม", { exact: true })).toBeNull();
+    view.rerender(<AnnualTaxWorksheet {...p} />);
+    await waitFor(() => expect(checkbox).toBeEnabled()); expect(checkbox).not.toBeChecked(); fireEvent.click(checkbox);
+    view.rerender(<AnnualTaxWorksheet {...p} ruleDigest={"b".repeat(64)} />);
+    expect(checkbox).not.toBeChecked();
+    view.rerender(<AnnualTaxWorksheet {...p} />); await waitFor(() => expect(checkbox).toBeEnabled()); fireEvent.click(checkbox);
+    fireEvent.change(screen.getByLabelText("เงินได้ทั้งปี (บาท)"), { target: { value: "700000" } });
+    expect(checkbox).not.toBeChecked(); expect(checkbox).toBeDisabled();
+    view.unmount(); render(<AnnualTaxWorksheet {...p} />);
+    await waitFor(() => expect(screen.getByRole("checkbox", { name: /ฉันยอมรับสมมติฐานและเปิดโหมดจำลอง/ })).toBeEnabled());
+    expect(screen.getByRole("checkbox", { name: /ฉันยอมรับสมมติฐานและเปิดโหมดจำลอง/ })).not.toBeChecked();
+  });
+  it("does not offer opt-in for incomplete/unconfirmed or read-only data", async () => {
+    const p = props(); const view = render(<AnnualTaxWorksheet {...p} />);
+    expect(screen.getByRole("checkbox", { name: /ฉันยอมรับสมมติฐานและเปิดโหมดจำลอง/ })).toBeDisabled();
+    view.rerender(<AnnualTaxWorksheet {...props(await confirmedManifest())} disabled />);
+    expect(screen.getByRole("checkbox", { name: /ฉันยอมรับสมมติฐานและเปิดโหมดจำลอง/ })).toBeDisabled();
+  });
+});

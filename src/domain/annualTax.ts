@@ -1,3 +1,4 @@
+import { SIMULATION_VERSION, simulationTable } from "./taxSimulation";
 import { categoryLabel, subcategoryLabel } from "./documents";
 import { numericBlockers, type AnyRuleBundle } from "./rules";
 import { sumSatang } from "./money";
@@ -6,7 +7,7 @@ import { sourceProjection, taxInputsSchema, type TaxInputs } from "./taxInputs";
 
 export type AnnualResult =
   | { status: "blocked"; reasons: string[] }
-  | { status: "complete"; lines: AnnualDeductionLine[]; salarySatang: number; expenseSatang: number; personalAllowanceSatang: number; taxableSatang: number; taxSatang: number; withheldSatang: number; payableSatang: number; refundSatang: number };
+  | { status: "complete"; basis: "reviewed" | "simulation"; rulesVersion: string; lines: AnnualDeductionLine[]; salarySatang: number; expenseSatang: number; personalAllowanceSatang: number; taxableSatang: number; taxSatang: number; withheldSatang: number; payableSatang: number; refundSatang: number };
 export interface AnnualDeductionLine {
   label: string;
   requestedSatang: number;
@@ -51,11 +52,22 @@ export function annualInputReasons(t: TaxInputs, records: readonly RecordEntry[]
   return [...new Set(reasons)];
 }
 
-/** Pure annual engine. A caller must supply trusted, current confirmed inputs. No legal defaults or other-year fallback. */
-export function calculateAnnualTax(args: {
+interface AnnualArguments {
   taxYear: number; inputs: TaxInputs | null; records: readonly RecordEntry[];
   bundle: AnyRuleBundle | null; trusted: boolean; confirmed: boolean;
-}): AnnualResult {
+}
+/** Reviewed path never accepts unreviewed tables, including the bundled simulation. */
+export function calculateAnnualTax(args: AnnualArguments): AnnualResult { return calculateAnnualCase(args, false); }
+
+/** Explicit opt-in uses ONLY the bundled assumptions, never an arbitrary imported unreviewed table. */
+export function calculateAnnualSimulation(args: Omit<AnnualArguments, "bundle" | "trusted">): AnnualResult {
+  return calculateAnnualCase({ ...args, bundle: simulationTable(), trusted: false }, true);
+}
+
+function calculateAnnualCase(args: {
+  taxYear: number; inputs: TaxInputs | null; records: readonly RecordEntry[];
+  bundle: AnyRuleBundle | null; trusted: boolean; confirmed: boolean;
+}, simulation: boolean): AnnualResult {
   const { taxYear, inputs: t, records, bundle, trusted, confirmed } = args;
   const reasons: string[] = [];
   if (taxYear !== 2026) reasons.push("เครื่องคำนวณใหม่นี้รองรับเฉพาะปีภาษี 2569");
@@ -69,7 +81,7 @@ export function calculateAnnualTax(args: {
   if (t.incomeItems.some((i) => i.grossAmountSatang === null || i.withheldAmountSatang === null)) reasons.push("ยังไม่ทราบยอดเงินเดือนหรือภาษีหัก ณ ที่จ่าย กรอก 0 หากไม่มีจริง");
   if (t.deductions.some((d) => d.eligibility === "unknown" || (d.eligibility !== "no" && d.existingContributionSatang === null))) reasons.push("ตรวจยอดและยืนยันสิทธิของรายการลดหย่อนแต่ละรายการก่อน");
   if (!bundle || bundle.schemaVersion !== 3 || bundle.taxYear !== taxYear) reasons.push("ยังไม่มีกฎคำนวณรายปี 2569 ที่ครบถ้วน กรุณาตรวจและเลือกกฎในเครื่องมือ ไม่ใช้กฎปีอื่นแทน");
-  else {
+  else if (!simulation) {
     reasons.push(...numericBlockers(bundle));
     if (!trusted) reasons.push("กฎไม่ตรงกับชุดที่แอปตรวจรับจากแหล่งทางการ");
     if (bundle.calculation.components.withholding_settlement?.status !== "verified") reasons.push("กฎชำระภาษีและขอคืนยังไม่ยืนยัน");
@@ -92,7 +104,7 @@ export function calculateAnnualTax(args: {
     if (d.eligibility === "no") { lines.push({ label, requestedSatang: d.existingContributionSatang ?? 0, allowedSatang: 0, reason: "ไม่ได้เลือกใช้สิทธิ" }); continue; }
     const key = `${d.category}/${d.subcategory}`;
     const rule = a.deductions.find((r) => `${r.category}/${r.subcategory}` === key);
-    if (!rule || rule.status !== "verified") reasons.push(`${label}: ${rule?.reason || "ยังไม่มีกฎที่ตรวจรับสำหรับประเภทนี้ ไม่รวมเป็นศูนย์เงียบ ๆ"}`);
+    if (!rule || (simulation ? rule.status !== "partial" : rule.status !== "verified")) reasons.push(`${label}: ${simulation ? "โหมดจำลองยังไม่รองรับประเภทนี้ ไม่ตัดรายการทิ้งหรือแสดงภาษีทั้งปีที่ไม่ครบ" : rule?.reason || "ยังไม่มีกฎที่ตรวจรับสำหรับประเภทนี้ ไม่รวมเป็นศูนย์เงียบ ๆ"}`);
     const total = (totals.get(key) ?? 0n) + BigInt(d.existingContributionSatang!);
     if (total > BigInt(Number.MAX_SAFE_INTEGER)) reasons.push("ยอดค่าลดหย่อนรวมเกินช่วงที่คำนวณได้");
     totals.set(key, total);
@@ -117,7 +129,7 @@ export function calculateAnnualTax(args: {
       }
       allowed = min(allowed, taxable);
       taxable -= allowed;
-      lines.push({ label: r.subcategory === null ? categoryLabel(r.category) : subcategoryLabel(r.subcategory), requestedSatang: Number(paid), allowedSatang: Number(allowed), reason: allowed < paid * BigInt(r.multiplier) ? "จำกัดตามเพดานรายประเภท วงเงินร่วม หรือเงินได้คงเหลือ" : r.multiplier === 2 ? "ใช้ตัวคูณตามกฎที่ตรวจรับแล้ว" : "ตามยอดที่ยืนยันและกฎที่ตรวจรับแล้ว" });
+      lines.push({ label: r.subcategory === null ? categoryLabel(r.category) : subcategoryLabel(r.subcategory), requestedSatang: Number(paid), allowedSatang: Number(allowed), reason: allowed < paid * BigInt(r.multiplier) ? (simulation ? "จำกัดตามเพดานสมมติ วงเงินร่วม หรือเงินได้คงเหลือ" : "จำกัดตามเพดานรายประเภท วงเงินร่วม หรือเงินได้คงเหลือ") : simulation ? "ตามสมมติฐานจำลอง ยังไม่ตรวจรับสิทธิ" : r.multiplier === 2 ? "ใช้ตัวคูณตามกฎที่ตรวจรับแล้ว" : "ตามยอดที่ยืนยันและกฎที่ตรวจรับแล้ว" });
     }
   }
   // Keep fractional band arithmetic until final tax; never round each band separately.
@@ -131,5 +143,5 @@ export function calculateAnnualTax(args: {
   }
   const tax = numerator / 10000n * 100n;
   const balance = tax - BigInt(withheldSum.satang);
-  return { status: "complete", lines, salarySatang: salarySum.satang, expenseSatang: Number(expense), personalAllowanceSatang: c.personalAllowanceSatang, taxableSatang: Number(taxable), taxSatang: Number(tax), withheldSatang: withheldSum.satang, payableSatang: Number(max0(balance)), refundSatang: Number(max0(-balance)) };
+  return { status: "complete", basis: simulation ? "simulation" : "reviewed", rulesVersion: simulation ? SIMULATION_VERSION : bundle.version, lines, salarySatang: salarySum.satang, expenseSatang: Number(expense), personalAllowanceSatang: c.personalAllowanceSatang, taxableSatang: Number(taxable), taxSatang: Number(tax), withheldSatang: withheldSum.satang, payableSatang: Number(max0(balance)), refundSatang: Number(max0(-balance)) };
 }
