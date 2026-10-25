@@ -11,7 +11,7 @@ export function RecordEditor({workspace,year,record,categoryId,onClose,onSave}:{
  const rules=workspace.years[year].rules.rules.filter(r=>r.id!=="personal"&&r.kind!=="expense");
  const [draft,setDraft]=useState<TaxRecord>(()=>record?structuredClone(record):{id:newId(),categoryId:categoryId??rules[0]?.id??"income-doc",title:"",amount:0,date:`${year-543}-${new Date().toISOString().slice(5,10)}`,eligibleAmount:null,provider:"",reference:"",note:"",documentStatus:"none",eligibility:"unchecked",checklist:[],attachments:[],facts:{}});
  const [files,setFiles]=useState<File[]>([]);const [error,setError]=useState("");const [busy,setBusy]=useState(false);
- const rule=rules.find(r=>r.id===draft.categoryId)!;
+ const rule=rules.find(r=>r.id===draft.categoryId)??rules[0];
  function patch(part:Partial<TaxRecord>){setDraft({...draft,...part});}
  function choose(list:FileList|null){if(list)setFiles(prev=>[...prev,...Array.from(list)]);}
  async function submit(e:FormEvent){e.preventDefault();if(submitting.current)return;submitting.current=true;setError("");setBusy(true);try {

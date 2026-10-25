@@ -2,7 +2,7 @@ import { useEffect, useRef, useId, type ReactNode } from "react";
 import { X } from "lucide-react";
 export function Modal({title,children,onClose,wide=false,busy=false}:{title:string;children:ReactNode;onClose:()=>void;wide?:boolean;busy?:boolean}) {
  const ref=useRef<HTMLDialogElement>(null); const titleId=useId();
- useEffect(()=>{const element=ref.current!;element.showModal(); return ()=>{element.close();};},[]);
+ useEffect(()=>{const element=ref.current;if(element&&!element.open)element.showModal();return()=>{if(element&&element.open)element.close();};},[]);
  return <dialog ref={ref} className={wide?"modal wide":"modal"} onCancel={e=>{e.preventDefault();if(!busy)onClose();}} aria-labelledby={titleId}>
  <header className="modal-head"><h2 id={titleId}>{title}</h2><button type="button" className="icon-button" aria-label="ปิดหน้าต่าง" disabled={busy} onClick={onClose}><X size={20}/></button></header>{children}</dialog>;
 }

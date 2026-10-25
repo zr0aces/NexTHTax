@@ -60,6 +60,6 @@ E2E สร้างหลักฐานใน `test-results/artifacts/` (ไม
 
 ## รอบส่งมอบสุดท้าย
 
-25 ตุลาคม 2569: **118 tests ผ่าน** (engine 68 + storage 50), **Chromium 7/7 ผ่าน** (9.8 วินาที), TypeScript และ static build ผ่าน ชุดกฎ **2569.2** offline precache 224 assets PDF จริง 4 หน้าอ่านข้อความไทยกลับและ render ผ่าน `npm audit`: 0 vulnerabilities รายละเอียด machine-readable: `docs/harness/verification.json`
+25 ตุลาคม 2569: **118 tests ผ่าน** (engine 68 + storage 50), **Chromium 7/7 ผ่าน** (10.0 วินาที), TypeScript 7.0.2 และ static build (Vite 8.3.5) ผ่าน ชุดกฎ **2569.2** offline precache 224 assets PDF จริง 4 หน้าอ่านข้อความไทยกลับและ render ผ่าน `npm audit`: 0 vulnerabilities รายละเอียด machine-readable: `docs/harness/verification.json`
 
-บันทึกแก้ระหว่างตรวจ: เปลี่ยนชื่อเข้าถึง select ให้ชัดเจน; แก้ offline asset match เมื่อ hosting มี Vary; ล็อก async edits/loads และ folder reads; เปลี่ยน ZIP extraction ให้ใช้ inspected ranges แบบ bounded; reset สิทธิหลังเปลี่ยนเงื่อนไขกฎ; ตรวจ recovery readback/การเปลี่ยนสำรองก่อนล็อก ทุกกรณีที่เกี่ยวกับข้อมูลมี regression proof ไม่ได้นำข้อมูลผู้ใช้จริงมาทดสอบ
+บันทึกแก้ระหว่างตรวจ: ปรับปรุงแพ็กเกจสู่รุ่นล่าสุด (Vite 8, TypeScript 7, Lucide-React 1.x, @types/node 26, React 19.3); รองรับ Playwright environment fallback อัตโนมัติ; ป้องกัน Modal InvalidStateError ใน React StrictMode; เพิ่ม fallback ความปลอดภัยสำหรับหมวดหมู่ใน RecordEditor เมื่อเปิดรายการที่มีหมวดไม่ตรงกับตัวกรอง
