@@ -1,0 +1,239 @@
+import { useEffect, useRef, useState } from "react";
+import { CATEGORIES, REVIEW_STATUSES, STATUS_LABELS, type RecordDraft, type ReviewStatus, validateDraft } from "../domain/documents";
+import { parseBahtInput } from "../domain/money";
+import type { Attachment, RecordEntry } from "../domain/schema";
+import type { AddAttachmentResult } from "../storage/workspace";
+import { formatPlainBaht } from "../transfer/csv";
+
+export const AUTOSAVE_MS = 500;
+
+interface Props {
+  record: RecordEntry;
+  attachments: Attachment[];
+  missingNames: string[];
+  onSave: (draft: RecordDraft) => Promise<RecordEntry>;
+  onUnsavedChange: (dirty: boolean) => void;
+  onAddFile: (file: File, displayName: string, allowDuplicate: boolean) => Promise<AddAttachmentResult>;
+  onLink: (attachmentId: string) => Promise<void>;
+  onUnlink: (attachmentId: string) => Promise<void>;
+  onPreview: (attachmentId: string) => void;
+}
+
+interface Form {
+  taxYear: number;
+  category: string;
+  date: string;
+  title: string;
+  issuer: string;
+  notes: string;
+  evidence: string;
+  claimed: string;
+  withheld: string;
+  status: ReviewStatus;
+  noAttachmentConfirmed: boolean;
+}
+
+function toForm(r: RecordEntry): Form {
+  return {
+    taxYear: r.taxYear,
+    category: r.category,
+    date: r.date,
+    title: r.title,
+    issuer: r.issuer,
+    notes: r.notes,
+    evidence: formatPlainBaht(r.evidenceAmountSatang),
+    claimed: formatPlainBaht(r.claimedAmountSatang),
+    withheld: formatPlainBaht(r.withheldAmountSatang),
+    status: r.status,
+    noAttachmentConfirmed: false,
+  };
+}
+
+type ParsedForm = { ok: true; draft: RecordDraft } | { ok: false; errors: Record<string, string> };
+
+/** Raw form to domain draft. Invalid input stays in the form and never reaches the manifest. */
+export function parseForm(f: Form, attachmentIds: string[]): ParsedForm {
+  const errors: Record<string, string> = {};
+  const amount = (raw: string, key: "evidence" | "claimed" | "withheld"): number | null => {
+    const parsed = parseBahtInput(raw);
+    if (!parsed.ok) {
+      errors[key] = parsed.error === "range" ? "จำนวนเงินเกินช่วงที่ระบบรองรับ" : "รูปแบบจำนวนเงินไม่ถูกต้อง (ตัวเลขไม่เกิน 2 ตำแหน่งทศนิยม)";
+      return null;
+    }
+    return parsed.satang;
+  };
+  const draft: RecordDraft = {
+    taxYear: f.taxYear,
+    category: f.category,
+    date: f.date,
+    title: f.title,
+    issuer: f.issuer,
+    notes: f.notes,
+    evidenceAmountSatang: amount(f.evidence, "evidence"),
+    claimedAmountSatang: amount(f.claimed, "claimed"),
+    withheldAmountSatang: amount(f.withheld, "withheld"),
+    status: f.status,
+    attachmentIds,
+  };
+  Object.assign(errors, validateDraft(draft));
+  if (f.status === "reviewed" && attachmentIds.length === 0 && !f.noAttachmentConfirmed) {
+    errors.status = "ตรวจทานแล้วโดยไม่มีไฟล์แนบ ต้องยืนยันว่าไม่ต้องมีเอกสารแนบ";
+  }
+  return Object.keys(errors).length === 0 ? { ok: true, draft } : { ok: false, errors };
+}
+
+/** One record in edit. Parent keys this component by record ID so drafts never carry across records. */
+export function DocumentEditor({ record, attachments, missingNames, onSave, onUnsavedChange, onAddFile, onLink, onUnlink, onPreview }: Props) {
+  const [form, setForm] = useState<Form>(() => toForm(record));
+  const [dirty, setDirty] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const version = useRef(0);
+  const attachmentIds = record.attachmentIds;
+  const parsed = parseForm(form, attachmentIds);
+  const hasErrors = !parsed.ok;
+  const errors = parsed.ok ? {} : parsed.errors;
+
+  useEffect(() => {
+    onUnsavedChange(dirty || hasErrors);
+  }, [dirty, hasErrors, onUnsavedChange]);
+
+  useEffect(() => {
+    if (!dirty || !parsed.ok) return;
+    const snapshot = version.current;
+    const draft = parsed.draft;
+    const timer = window.setTimeout(() => {
+      onSave(draft)
+        .then((saved) => {
+          if (version.current === snapshot) {
+            setDirty(false);
+            if (saved.status !== draft.status) setForm((f) => ({ ...f, status: saved.status }));
+          }
+          setMessage(null);
+        })
+        .catch((err: unknown) => {
+          setMessage(err instanceof Error ? err.message : "บันทึกไม่สำเร็จ ข้อมูลยังอยู่ในฟอร์ม");
+        });
+    }, AUTOSAVE_MS);
+    return () => window.clearTimeout(timer);
+    // parsed is derived from form and attachmentIds; the effect is keyed on those inputs.
+  }, [form, dirty, attachmentIds.join(",")]);
+
+  const update = <K extends keyof Form>(key: K, value: Form[K]) => {
+    version.current += 1;
+    setDirty(true);
+    setForm((f) => ({ ...f, [key]: value }));
+  };
+
+  const handleFile = async (file: File | undefined) => {
+    if (!file) return;
+    try {
+      const result = await onAddFile(file, file.name, false);
+      if (result.status === "duplicate") {
+        const useExisting = window.confirm("มีไฟล์เหมือนกันอยู่แล้วในโฟลเดอร์ ต้องการใช้ไฟล์เดิมแทนการคัดลอกซ้ำหรือไม่");
+        if (useExisting && result.existingIds[0]) {
+          await onLink(result.existingIds[0]);
+        } else if (window.confirm("ต้องการคัดลอกไฟล์นี้เพิ่มเป็นสำเนาใหม่หรือไม่")) {
+          const again = await onAddFile(file, file.name, true);
+          if (again.status === "added") await onLink(again.attachment.id);
+        }
+      } else {
+        await onLink(result.attachment.id);
+      }
+      setMessage("เพิ่มไฟล์แนบแล้ว");
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "เพิ่มไฟล์ไม่สำเร็จ");
+    }
+  };
+
+  const attachmentById = new Map(attachments.map((a) => [a.id, a]));
+
+  return (
+    <form className="editor" aria-label="แก้ไขรายการ" onSubmit={(e) => e.preventDefault()}>
+      <h2>แก้ไขรายการ</h2>
+      <p className="status" role="status" aria-live="polite">
+        {hasErrors ? "มีข้อมูลที่ยังไม่ถูกต้อง ยังไม่บันทึก" : dirty ? "กำลังจะบันทึกอัตโนมัติ" : "บันทึกแล้ว"}
+      </p>
+      {message && <p role="alert" className="error">{message}</p>}
+      <label>
+        วันที่ (ปปปป-ดด-วว)
+        <input type="date" value={form.date} onChange={(e) => update("date", e.target.value)} aria-invalid={!!errors.date} />
+        {errors.date && <span className="error">{errors.date}</span>}
+      </label>
+      <label>
+        ชื่อรายการ
+        <input value={form.title} maxLength={200} onChange={(e) => update("title", e.target.value)} aria-invalid={!!errors.title} />
+        {errors.title && <span className="error">{errors.title}</span>}
+      </label>
+      <label>
+        หมวด
+        <select value={form.category} onChange={(e) => update("category", e.target.value)}>
+          {CATEGORIES.map((c) => (
+            <option key={c.id} value={c.id}>{c.label}</option>
+          ))}
+        </select>
+      </label>
+      <label>
+        ผู้ออกเอกสาร
+        <input value={form.issuer} maxLength={200} onChange={(e) => update("issuer", e.target.value)} />
+      </label>
+      <label>
+        ยอดตามหลักฐาน (บาท, เว้นว่างหากไม่ทราบ)
+        <input inputMode="decimal" value={form.evidence} onChange={(e) => update("evidence", e.target.value)} aria-invalid={!!errors.evidence} />
+        {errors.evidence && <span className="error">{errors.evidence}</span>}
+      </label>
+      <label>
+        ยอดที่เลือกใช้สิทธิ (บาท, ก่อนกฎ, เว้นว่างหากไม่ทราบ)
+        <input inputMode="decimal" value={form.claimed} onChange={(e) => update("claimed", e.target.value)} aria-invalid={!!errors.claimed} />
+        {errors.claimed && <span className="error">{errors.claimed}</span>}
+      </label>
+      <label>
+        หัก ณ ที่จ่าย (บาท, เว้นว่างหากไม่มี)
+        <input inputMode="decimal" value={form.withheld} onChange={(e) => update("withheld", e.target.value)} aria-invalid={!!errors.withheld} />
+        {errors.withheld && <span className="error">{errors.withheld}</span>}
+      </label>
+      <label>
+        สถานะ
+        <select value={form.status} onChange={(e) => update("status", e.target.value as ReviewStatus)}>
+          {REVIEW_STATUSES.map((s) => (
+            <option key={s} value={s}>{STATUS_LABELS[s]}</option>
+          ))}
+        </select>
+        {errors.status && <span className="error">{errors.status}</span>}
+      </label>
+      {form.status === "reviewed" && attachmentIds.length === 0 && (
+        <label>
+          <input type="checkbox" checked={form.noAttachmentConfirmed} onChange={(e) => update("noAttachmentConfirmed", e.target.checked)} />
+          ยืนยันว่ารายการนี้ไม่ต้องมีเอกสารแนบ (เช่น ข้อมูลที่กรอกเองตามที่ผู้ใช้ยืนยัน)
+        </label>
+      )}
+      <label>
+        หมายเหตุ
+        <textarea value={form.notes} maxLength={2000} onChange={(e) => update("notes", e.target.value)} />
+        {errors.notes && <span className="error">{errors.notes}</span>}
+      </label>
+
+      <fieldset>
+        <legend>ไฟล์แนบ (PDF, JPEG, PNG)</legend>
+        {missingNames.length > 0 && <p className="warning">ไฟล์ที่หายไปหรือไม่ตรงกับข้อมูล: {missingNames.join(", ")}</p>}
+        <ul>
+          {attachmentIds.map((id) => {
+            const att = attachmentById.get(id);
+            return (
+              <li key={id}>
+                {att ? att.displayName : "ไฟล์ที่ไม่พบ"}
+                {att && <button type="button" onClick={() => onPreview(id)}>ดูตัวอย่าง</button>}
+                <button type="button" onClick={() => onUnlink(id).catch((err: unknown) => setMessage(err instanceof Error ? err.message : "ไม่สำเร็จ"))}>
+                  นำออกจากรายการ
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+        <label>
+          เพิ่มไฟล์ (ไฟล์จะถูกคัดลอกเข้าโฟลเดอร์ ไม่ย้ายหรือแก้ต้นฉบับ)
+          <input type="file" accept="application/pdf,image/jpeg,image/png" onChange={(e) => void handleFile(e.target.files?.[0])} />
+        </label>
+      </fieldset>
+    </form>
+  );
+}

@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 1,
+  "taxYear": 2026,
+  "version": "2026-unreviewed-1",
+  "reviewedAt": "2026-10-25",
+  "officialReviewed": false,
+  "sources": [],
+  "coverage": {
+    "income_salary": {
+      "status": "unavailable",
+      "reason": "ยังไม่ได้ตรวจกับแหล่งทางการ ห้ามแสดงเป็นยืนยันแล้ว"
+    },
+    "income_investment": {
+      "status": "unavailable",
+      "reason": "ยังไม่ได้ตรวจกับแหล่งทางการ ห้ามแสดงเป็นยืนยันแล้ว"
+    },
+    "income_other": {
+      "status": "unavailable",
+      "reason": "ยังไม่ได้ตรวจกับแหล่งทางการ ห้ามแสดงเป็นยืนยันแล้ว"
+    },
+    "withholding_50bis": {
+      "status": "unavailable",
+      "reason": "ยังไม่ได้ตรวจกับแหล่งทางการ ห้ามแสดงเป็นยืนยันแล้ว"
+    },
+    "withholding_investment": {
+      "status": "unavailable",
+      "reason": "ยังไม่ได้ตรวจกับแหล่งทางการ ห้ามแสดงเป็นยืนยันแล้ว"
+    },
+    "deduction_personal": {
+      "status": "unavailable",
+      "reason": "ยังไม่ได้ตรวจกับแหล่งทางการ ห้ามแสดงเป็นยืนยันแล้ว"
+    },
+    "deduction_insurance": {
+      "status": "unavailable",
+      "reason": "ยังไม่ได้ตรวจกับแหล่งทางการ ห้ามแสดงเป็นยืนยันแล้ว"
+    },
+    "deduction_retirement": {
+      "status": "unavailable",
+      "reason": "ยังไม่ได้ตรวจกับแหล่งทางการ ห้ามแสดงเป็นยืนยันแล้ว"
+    },
+    "deduction_social_security": {
+      "status": "unavailable",
+      "reason": "ยังไม่ได้ตรวจกับแหล่งทางการ ห้ามแสดงเป็นยืนยันแล้ว"
+    },
+    "deduction_mortgage_interest": {
+      "status": "unavailable",
+      "reason": "ยังไม่ได้ตรวจกับแหล่งทางการ ห้ามแสดงเป็นยืนยันแล้ว"
+    },
+    "deduction_other": {
+      "status": "unavailable",
+      "reason": "ยังไม่ได้ตรวจกับแหล่งทางการ ห้ามแสดงเป็นยืนยันแล้ว"
+    },
+    "donation_general": {
+      "status": "unavailable",
+      "reason": "ยังไม่ได้ตรวจกับแหล่งทางการ ห้ามแสดงเป็นยืนยันแล้ว"
+    },
+    "donation_conditional": {
+      "status": "unavailable",
+      "reason": "ยังไม่ได้ตรวจกับแหล่งทางการ ห้ามแสดงเป็นยืนยันแล้ว"
+    },
+    "donation_edonation": {
+      "status": "unavailable",
+      "reason": "ยังไม่ได้ตรวจกับแหล่งทางการ ห้ามแสดงเป็นยืนยันแล้ว"
+    },
+    "other": {
+      "status": "unavailable",
+      "reason": "ยังไม่ได้ตรวจกับแหล่งทางการ ห้ามแสดงเป็นยืนยันแล้ว"
+    }
+  },
+  "notes": "ยังไม่มีกฎที่ตรวจกับแหล่งทางการ ยอดสิทธิหลังกฎจึงแสดงเป็นยังไม่มีข้อมูล"
+}

@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "bundles": [
+    {
+      "taxYear": 2025,
+      "version": "2025-unreviewed-1",
+      "path": "2025/2025-unreviewed-1.json",
+      "sha256": "4e37339275765c060853abef5e0d86ff55561b2ecdc83580b549029e9c19c583",
+      "reviewedAt": "2026-10-25",
+      "officialReviewed": false
+    },
+    {
+      "taxYear": 2026,
+      "version": "2026-unreviewed-1",
+      "path": "2026/2026-unreviewed-1.json",
+      "sha256": "17d66d90e9b312633f9d23ad28e1c206c00d9e47eef5cfcdf9198244b4254c8a",
+      "reviewedAt": "2026-10-25",
+      "officialReviewed": false
+    }
+  ]
+}
