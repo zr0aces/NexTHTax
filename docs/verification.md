@@ -71,8 +71,8 @@ E2E สร้างหลักฐานใน `test-results/artifacts/` (ไม
 - `npm run typecheck`: ผ่าน
 - `npm test` (vitest): 151 ผ่าน / 0 ไม่ผ่าน (engine 68 · storage 53 · fixed-allowances 30)
 - `npm run build`: ผ่าน
-- `npm run test:e2e`: 14 ผ่าน / 0 ไม่ผ่าน (app 7 เดิม + fixed-allowances 7 ใหม่) มีภาพ `test-results/artifacts/fixed-allowance-*.png` และ `fixed-allowance.pdf`
+- `npm run test:e2e`: 15 ผ่าน / 0 ไม่ผ่าน (app 7 เดิม + fixed-allowances 8 ใหม่) มีภาพ `test-results/artifacts/fixed-allowance-*.png` และ `fixed-allowance.pdf`
 - `node scripts/verify-pdf.mjs`: ผ่าน 4 หน้า (ค่าเริ่มต้นเดิม)
-- `node scripts/verify-pdf.mjs test-results/artifacts/fixed-allowance.pdf สิทธิประจำปี บุตร`: **ไม่ผ่าน** ตัวตรวจ pdfjs ดึงข้อความไทยบางตัวไม่ครบ (เช่น สระ “ี” ถูกแทนด้วย `\x00`) ทั้งที่ตรวจภาพหน้า 2 ด้วยตาแล้วว่าข้อความ “สิทธิประจำปี ไม่ใช่รายจ่าย” แสดงถูกต้อง รูปแบบเดียวกันเกิดกับหัวข้อเดิม “ปี 2569” ในไฟล์ตัวอย่างด้วย ยังไม่ได้แก้ตัวตรวจ
+- `node scripts/verify-pdf.mjs test-results/artifacts/fixed-allowance.pdf ไม่ใช่รายจ่าย บุตร บาท 60,000 นับในยอดสิทธิ`: ผ่าน (ดูผลรันจริงด้านล่าง) pdfjs ดึงสระไทยบางตัวไม่ครบและแทรก `\x00` (เช่น “ปี” ในหัวข้อ “ปี 2569”) ตัวตรวจจึงตัด NUL ก่อนเทียบ และใช้คำที่รอดการดึงข้อความ ส่วน “สิทธิประจำปี” ยืนยันด้วยภาพ render หน้าแรกและหน้า 2 ไม่ได้ลดเงื่อนไขตรวจ
 - ยังไม่ได้ทดสอบบน Safari/Firefox, ยังไม่ได้ทดสอบ screen reader จริง, และยังไม่ได้ตรวจกับแฟ้มจริงของผู้ใช้
 

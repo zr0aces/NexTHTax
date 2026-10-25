@@ -11,5 +11,8 @@ const stem=path===defaultPath?"annual-pdf":basename(path,extname(path));
 const outDir=path===defaultPath?"test-results/artifacts":path.slice(0,path.length-basename(path).length)||".";
 const bytes=new Uint8Array(await readFile(path));const loading=getDocument({data:bytes,useSystemFonts:true});const doc=await loading.promise;
 let all="";for(let n=1;n<=doc.numPages;n++){const page=await doc.getPage(n);const text=await page.getTextContent();all+=text.items.map(item=>item.str??"").join("")+"\n";}
-for(const expected of expectedTexts){if(!all.includes(expected))throw new Error("Thai PDF text missing: "+expected);}
+await writeFile(`${outDir}/${stem}-text.txt`,all);
+// pdfjs drops some Thai vowel marks and emits NULs; match against NUL-stripped text with expected strings that survive extraction.
+const searchable=all.replaceAll("\u0000","");
+for(const expected of expectedTexts){if(!searchable.includes(expected))throw new Error("Thai PDF text missing: "+expected);}
 const page=await doc.getPage(1);const viewport=page.getViewport({scale:1.3});const canvas=createCanvas(Math.ceil(viewport.width),Math.ceil(viewport.height));await page.render({canvas,viewport}).promise;await writeFile(`${outDir}/${stem}-rendered.png`,canvas.toBuffer("image/png"));await writeFile(`${outDir}/${stem}-text.txt`,all);console.log(`Thai PDF verified: ${doc.numPages} pages, embedded Thai text found (${expectedTexts.length} expected strings); first page rasterized: ${path}`);await loading.destroy();

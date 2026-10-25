@@ -191,3 +191,11 @@ test("fixed composer and panel stay usable at 390px and 1440px with screenshots"
  await page.keyboard.press("Escape");
  await expect(modal).not.toBeVisible();
 });
+
+test("category chooser omits fixed allowances but keeps document categories", async ({page}) => {
+ await createZip(page);
+ await page.getByRole("button", {name: /ดูหมวดทั้งหมด/}).click();
+ const dialog = page.getByRole("dialog");
+ await expect(dialog.locator(".category-choice").first()).toBeVisible();
+ for (const name of ["บุตร", "บิดามารดา", "คู่สมรส"]) await expect(dialog.locator(".category-choice strong", {hasText: new RegExp(`^${name}`)})).toHaveCount(0);
+});
