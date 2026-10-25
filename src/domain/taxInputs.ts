@@ -65,6 +65,17 @@ export const taxScenarioSchema = z.strictObject({
   if (new Set(ids).size !== ids.length) ctx.addIssue({ code: "custom", message: "ประเภทในแผนซ้ำ" });
 });
 
+/** One selected health action. Status is derived from current evidence and its completion digest. */
+export const taxPlanSchema = z.strictObject({
+  scenarioId: uuid,
+  actualAmountSatang: satang.nullable(),
+  paid: z.boolean(),
+  baselineExcludesAction: z.boolean(),
+  evidenceRecordId: uuid.nullable(),
+  completionDigest: digest,
+});
+export type TaxPlan = z.infer<typeof taxPlanSchema>;
+
 export type TaxInputs = z.infer<typeof taxInputsSchema>;
 export type TaxScenario = z.infer<typeof taxScenarioSchema>;
 

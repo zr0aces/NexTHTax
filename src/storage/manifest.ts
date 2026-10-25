@@ -1,4 +1,4 @@
-import { manifestSchema, legacyManifestSchema, detectSchemaVersion, SCHEMA_VERSION, MAX_METADATA_BYTES, type Manifest, type StoredManifest } from "../domain/schema";
+import { manifestSchema, legacyManifestSchema, v2ManifestSchema, detectSchemaVersion, SCHEMA_VERSION, MAX_METADATA_BYTES, type Manifest, type StoredManifest } from "../domain/schema";
 import { StorageError } from "./fs";
 
 export function encodeManifest(m: StoredManifest): Uint8Array {
@@ -20,7 +20,7 @@ export function decodeManifest(bytes: Uint8Array): StoredManifest {
   if (version !== null && version > SCHEMA_VERSION) {
     throw new StorageError("newer-schema", `ข้อมูลสร้างด้วยเวอร์ชันใหม่กว่า (schema ${version}) กรุณาใช้แอปรุ่นที่รองรับ`);
   }
-  const result = (version === 1 ? legacyManifestSchema : manifestSchema).safeParse(parsed);
+  const result = (version === 1 ? legacyManifestSchema : version === 2 ? v2ManifestSchema : manifestSchema).safeParse(parsed);
   if (!result.success) {
     throw new StorageError("invalid", `data.json ไม่ผ่านการตรวจสอบ: ${result.error.issues[0]?.message ?? "ไม่ทราบสาเหตุ"}`);
   }

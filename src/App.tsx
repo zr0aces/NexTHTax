@@ -3,8 +3,8 @@ import type { RecordDraft, ReviewStatus } from "./domain/documents";
 import { invalidatesReview } from "./domain/documents";
 import { bangkokCalendarYear, bangkokDateString } from "./domain/years";
 import { isSupportedTaxYear } from "./domain/years";
-import { type Manifest, type RecordEntry, type Attachment, type LegacyManifest } from "./domain/schema";
-import { type AnyRuleBundle, bundlePath } from "./domain/rules";
+import { SCHEMA_VERSION, type Manifest, type RecordEntry, type Attachment, type PriorManifest } from "./domain/schema";
+import { type AnyRuleBundle, bundlePath, isTrustedMatch } from "./domain/rules";
 import { catalogEntryFor, fetchBundle, fetchCatalog, loadPinnedBundle } from "./storage/pinnedRules";
 import type { Catalog } from "./domain/rules";
 import {
@@ -23,7 +23,7 @@ import { WorkspaceScreen } from "./ui/WorkspaceScreen";
 import { YearOverview } from "./ui/YearOverview";
 import { DocumentList } from "./ui/DocumentList";
 import { TaxWorksheet } from "./ui/TaxWorksheet";
-import type { TaxInputs } from "./domain/taxInputs";
+import type { TaxInputs, TaxPlan, TaxScenario } from "./domain/taxInputs";
 import { DocumentEditor } from "./ui/DocumentEditor";
 import { BackupPanel } from "./ui/BackupPanel";
 import { RuleReview } from "./ui/RuleReview";
@@ -32,9 +32,13 @@ import { ImagePreview } from "./ui/ImagePreview";
 import { registerOfflineSupport } from "./offline";
 import { downloadBlob } from "./ui/BackupPanel";
 import { exportMetadataJson } from "./transfer/json";
+import { planCompletionProjection, planReviewReasons } from "./domain/planning";
+import { sha256Hex } from "./storage/hash";
+import { validateManifest } from "./storage/manifest";
+import { ModalDialog } from "./ui/ModalDialog";
 
 type SaveState = "saved" | "saving" | "save-error" | "conflict";
-type Tab = "documents" | "rules" | "backup";
+type Tab = "worksheet" | "documents" | "tools";
 interface Preview {
   attachment: Attachment;
   bytes: Uint8Array;
@@ -60,7 +64,7 @@ export function App() {
   const [session, setSession] = useState<WorkspaceSession | null>(null);
   const [root, setRoot] = useState<DirHandleLike | null>(null);
   const [setupRoot, setSetupRoot] = useState<DirHandleLike | null>(null);
-  const [upgrade, setUpgrade] = useState<{ source: DirHandleLike; manifest: LegacyManifest } | null>(null);
+  const [upgrade, setUpgrade] = useState<{ source: DirHandleLike; manifest: PriorManifest } | null>(null);
   const [manifest, setManifest] = useState<Manifest | null>(null);
   const [missing, setMissing] = useState<string[]>([]);
   const [pending, setPending] = useState<string[]>([]);
@@ -71,7 +75,11 @@ export function App() {
   const [dirty, setDirty] = useState(false);
   const dirtyRef = useRef(false);
   const [notice, setNotice] = useState<string | null>(null);
-  const [tab, setTab] = useState<Tab>("documents");
+  const [tab, setTab] = useState<Tab>("worksheet");
+  const [isAddYearOpen, setIsAddYearOpen] = useState(false);
+  const [newYearInput, setNewYearInput] = useState("");
+  const [purgeCandidateId, setPurgeCandidateId] = useState<string | null>(null);
+  const [pinConfirmOpen, setPinConfirmOpen] = useState(false);
   const [pinned, setPinned] = useState<{ bundle: AnyRuleBundle; digest: string } | null>(null);
   const [catalog, setCatalog] = useState<Catalog | null>(null);
   const [catalogError, setCatalogError] = useState<string | null>(null);
@@ -176,6 +184,7 @@ export function App() {
     setSetupRoot(null);
     setUpgrade(null);
     setPreview(null);
+    setTab("worksheet");
     setExtraYears([]);
     const yearsWithData = Object.keys(result.session.manifest.years).map(Number).sort((a, b) => b - a);
     setTaxYear(yearsWithData[0] ?? bangkokCalendarYear());
@@ -204,7 +213,7 @@ export function App() {
 
   const migrateFolder = () => run(async () => {
     if (!upgrade || !confirmLeave()) return;
-    if (!window.confirm("สร้างสำเนาข้อมูลรุ่นใหม่ในโฟลเดอร์ว่างหรือไม่? ต้นฉบับจะไม่เปลี่ยนแปลง รายการเดิมจะยังไม่ระบุประเภทย่อย แอปรุ่นเก่าเปิดสำเนาใหม่ไม่ได้")) return;
+    if (!window.confirm("สร้างสำเนาข้อมูลรุ่นใหม่ในโฟลเดอร์ว่างหรือไม่? ต้นฉบับจะไม่เปลี่ยนแปลง ข้อมูลเดิมและต้นฉบับจะถูกเก็บไว้ แอปรุ่นเก่าเปิดสำเนาใหม่ไม่ได้")) return;
     const target = await pickWorkspaceFolder();
     session?.close();
     setSession(null);
@@ -213,7 +222,7 @@ export function App() {
     const opened = await openWorkspace(target);
     if ("needsSetup" in opened || "upgradeRequired" in opened) throw new StorageError("write-failed", "สำเนายังไม่พร้อมเปิด");
     attach(target, opened);
-    setNotice("เปิดสำเนารุ่นใหม่แล้ว ต้นฉบับคงเดิม ประเภทเอกสารเดิมยังไม่ระบุ และยังไม่เปิดคำนวณภาษี");
+    setNotice("เปิดสำเนารุ่นใหม่แล้ว ต้นฉบับคงเดิม ยังไม่รับรองสิทธิหรือผลคำนวณภาษี");
   });
 
   const startNewFolder = () =>
@@ -256,11 +265,53 @@ export function App() {
   };
 
   const saveTaxInputs = async (taxYear: number, taxInputs: TaxInputs): Promise<void> => {
-    await commit((m) => {
-      const key = String(taxYear);
-      if (!m.years[key]) m.years[key] = { taxYear, rulesVersion: null, rulesDigest: null, eligibility: {}, taxInputs: null, scenarios: [] };
-      m.years[key].taxInputs = taxInputs;
-    });
+    setBusy(true);
+    try {
+      await commit((m) => {
+        const key = String(taxYear);
+        if (!m.years[key]) m.years[key] = { taxYear, rulesVersion: null, rulesDigest: null, eligibility: {}, taxInputs: null, scenarios: [] };
+        m.years[key].taxInputs = taxInputs;
+      });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const verifyPlanEvidence = useCallback(async (recordId: string): Promise<void> => {
+    if (!session) throw new StorageError("read-only", "ยังไม่ได้เปิดโฟลเดอร์");
+    const record = session.manifest.records.find((r) => r.id === recordId);
+    if (!record || record.attachmentIds.length === 0) throw new StorageError("invalid", "ไม่พบไฟล์หลักฐาน");
+    for (const id of record.attachmentIds) await session.readAttachment(id);
+  }, [session]);
+
+  const savePlan = async (scenario: TaxScenario, plan: TaxPlan, complete: boolean): Promise<void> => {
+    if (!session) throw new StorageError("read-only", "ยังไม่ได้เปิดโฟลเดอร์");
+    setBusy(true);
+    try {
+      const candidate = structuredClone(session.manifest);
+      const apply = (m: Manifest) => {
+        const key = String(taxYear);
+        const year = m.years[key] ??= { taxYear, rulesVersion: null, rulesDigest: null, eligibility: {}, taxInputs: null, scenarios: [] };
+        const index = year.scenarios.findIndex((s) => s.id === scenario.id);
+        if (index < 0) year.scenarios.push(scenario); else year.scenarios[index] = scenario;
+        year.plan = { ...plan, completionDigest: null };
+      };
+      apply(candidate);
+      validateManifest(candidate);
+      const projection = planCompletionProjection(candidate, taxYear);
+      let digest: string | null = null;
+      if (complete) {
+        const reasons = planReviewReasons(candidate, taxYear);
+        if (reasons.length > 0) throw new StorageError("invalid", reasons.join(" · "));
+        await verifyPlanEvidence(plan.evidenceRecordId!);
+        digest = await sha256Hex(new TextEncoder().encode(projection));
+      }
+      await commit((m) => {
+        apply(m);
+        if (planCompletionProjection(m, taxYear) !== projection) throw new StorageError("conflict", "ข้อมูลเปลี่ยนระหว่างยืนยันแผน โปรดตรวจสอบใหม่");
+        m.years[String(taxYear)]!.plan!.completionDigest = digest;
+      });
+    } finally { setBusy(false); }
   };
 
   const saveRecord = async (id: string, draft: RecordDraft): Promise<RecordEntry> => {
@@ -269,6 +320,12 @@ export function App() {
       if (!m.years[key]) m.years[key] = { taxYear: draft.taxYear, rulesVersion: null, rulesDigest: null, eligibility: {}, taxInputs: null, scenarios: [] };
       const r = m.records.find((x) => x.id === id);
       if (!r) throw new StorageError("invalid", "ไม่พบรายการ");
+      for (const year of Object.values(m.years)) {
+        if (year.plan?.evidenceRecordId === id && year.taxYear !== draft.taxYear) {
+          year.plan.evidenceRecordId = null;
+          year.plan.completionDigest = null;
+        }
+      }
       let status: ReviewStatus = draft.status;
       if (status === "reviewed" && invalidatesReview(r, draft)) status = "waiting-review";
       Object.assign(r, {
@@ -367,13 +424,13 @@ export function App() {
       });
     });
 
-  const purgeRecord = (id: string) =>
+  const requestPurge = (id: string) => {
+    setPurgeCandidateId(id);
+  };
+
+  const executePurge = (id: string) =>
     run(async () => {
       if (!session) return;
-      const ok = window.confirm(
-        "ลบรายการนี้ถาวรหรือไม่\n\nไฟล์แนบที่ไม่มีรายการอื่นอ้างถึงจะถูกลบจากโฟลเดอร์ และสำเนาสำรองเก่าที่อ้างไฟล์นั้นจะถูกลบถาวร ไม่สามารถย้อนกลับได้ หากยังไม่มีข้อมูลสำรองล่าสุด ควรสำรอง ZIP ก่อน",
-      );
-      if (!ok) return;
       if (selectedId === id && !confirmLeave()) return;
       setSaveState("saving");
       try {
@@ -438,15 +495,18 @@ export function App() {
       setCatalog(await fetchCatalog(BASE));
     });
 
-  const pinLatest = () =>
+  const requestPinLatest = () => {
+    if (!session) return;
+    const entry = catalogEntryFor(catalog, taxYear);
+    if (!entry) return;
+    setPinConfirmOpen(true);
+  };
+
+  const executePin = () =>
     run(async () => {
       if (!session) return;
       const entry = catalogEntryFor(catalog, taxYear);
       if (!entry) return;
-      const ok = window.confirm(
-        `ยืนยันการปักกฎปี ${taxYear} เป็นเวอร์ชัน ${entry.version}?\n\nยอดที่คุณกรอกไว้จะไม่เปลี่ยน รายการที่ตรวจทานแล้วจะไม่ถูกเปลี่ยนสถานะโดยอัตโนมัติ`,
-      );
-      if (!ok) return;
       const loaded = await fetchBundle(BASE, entry);
       if (loaded.bundle.version !== entry.version) throw new StorageError("invalid", "เวอร์ชันของไฟล์กฎไม่ตรงกับรายการ");
       const next = await session.pinRules(taxYear, entry.version, bundlePath(taxYear, entry.version), loaded.bytes, loaded.digest);
@@ -493,7 +553,7 @@ export function App() {
         <div className="vault-brand">
           <h1>
             NexTHTax
-            <span className="vault-badge">Local Vault</span>
+            <span className="vault-badge">เก็บบนเครื่อง</span>
           </h1>
         </div>
 
@@ -510,7 +570,7 @@ export function App() {
               <span>{SAVE_LABEL[saveState]} {dirty ? "· มีการแก้ไขที่ยังไม่บันทึก" : ""}</span>
             </div>
 
-            <button type="button" onClick={closeFolder}>ปิดโฟลเดอร์</button>
+            <button type="button" disabled={busy} onClick={closeFolder}>ปิดโฟลเดอร์</button>
           </div>
         )}
       </header>
@@ -528,7 +588,7 @@ export function App() {
         <section aria-labelledby="upgrade-title" className="entry">
           <h2 id="upgrade-title">ข้อมูลรุ่นเดิม ต้องสร้างสำเนารุ่นใหม่ก่อนแก้ไข</h2>
           <p>{upgrade.manifest.taxpayer.displayName} · {upgrade.manifest.records.length} รายการ</p>
-          <p>ต้นฉบับและไฟล์กู้คืนจะไม่ถูกแก้ไข สำเนาใช้กับแอปรุ่นใหม่เท่านั้น รายการเดิมยังไม่ระบุประเภทย่อย กรุณาเก็บต้นฉบับไว้สำหรับย้อนกลับ</p>
+          <p>ต้นฉบับและไฟล์กู้คืนจะไม่ถูกแก้ไข สำเนาใช้กับแอปรุ่นใหม่เท่านั้น ข้อมูลจาก schema 1 จะยังไม่ระบุประเภทย่อย ข้อมูลจาก schema 2 คงประเภทเดิม กรุณาเก็บต้นฉบับไว้สำหรับย้อนกลับ</p>
           <button type="button" disabled={busy} onClick={() => void migrateFolder()}>สร้างสำเนารุ่นใหม่ในโฟลเดอร์ว่าง</button>
           <button type="button" disabled={busy} onClick={() => setUpgrade(null)}>ยกเลิกการย้ายข้อมูล</button>
         </section>
@@ -556,9 +616,6 @@ export function App() {
 
       {session && manifest && root && (
         <main>
-          <p className="save-state" role="status" aria-live="polite">
-            สถานะ: {SAVE_LABEL[saveState]} {dirty ? "· มีการแก้ไขที่ยังไม่บันทึก" : ""}
-          </p>
           <p className="warning">ข้อมูลทั้งหมดอยู่ในโฟลเดอร์ที่คุณเลือก โปรดสำรอง ZIP เป็นระยะ</p>
           {saveState === "save-error" && (
             <div role="alert" className="update">
@@ -569,88 +626,97 @@ export function App() {
           {session.readOnly && <p className="warning">โหมดอ่านอย่างเดียว การแก้ไขถูกปิดไว้</p>}
           {missing.length > 0 && <p className="warning">ไฟล์แนบที่หายหรือไม่ตรงกับข้อมูล {missing.length} ไฟล์</p>}
           {pending.length > 0 && <p className="warning">มีไฟล์ candidate ค้างจากการบันทึกที่ไม่สมบูรณ์ ({pending.length} ไฟล์)</p>}
+          <div className="workspace-toolbar">
+            <label>
+              ปีภาษี
+              <select value={taxYear} disabled={busy} onChange={(e) => changeYear(Number(e.target.value))}>
+                {years.map((year) => <option key={year} value={year}>{year} (พ.ศ. {year + 543})</option>)}
+              </select>
+            </label>
+            <button type="button" disabled={busy} onClick={() => setIsAddYearOpen(true)}>เพิ่มปีภาษี</button>
+          </div>
           <nav className="tabs" aria-label="เมนูหลัก">
-            <button type="button" aria-pressed={tab === "documents"} onClick={() => handleTabChange("documents")}>เอกสารและสรุป</button>
-            <button type="button" aria-pressed={tab === "rules"} onClick={() => handleTabChange("rules")}>กฎภาษี</button>
-            <button type="button" aria-pressed={tab === "backup"} onClick={() => handleTabChange("backup")}>สำรองข้อมูล</button>
+            <button type="button" disabled={busy} aria-pressed={tab === "worksheet"} onClick={() => handleTabChange("worksheet")}>คำนวณและวางแผน</button>
+            <button type="button" disabled={busy} aria-pressed={tab === "documents"} onClick={() => handleTabChange("documents")}>เอกสาร</button>
+            <button type="button" disabled={busy} aria-pressed={tab === "tools"} onClick={() => handleTabChange("tools")}>เครื่องมือ</button>
           </nav>
+          {tab === "worksheet" && (
+            <TaxWorksheet
+              key={`${manifest.workspaceId}-${taxYear}`}
+              manifest={manifest}
+              taxYear={taxYear}
+              bundle={pinned?.bundle ?? null}
+              ruleDigest={pinned?.digest ?? null}
+              disabled={session.readOnly || busy}
+              onUnsavedChange={handleUnsaved}
+              onSavePlan={savePlan}
+              onVerifyPlanEvidence={verifyPlanEvidence}
+              trustedRules={pinned !== null && isTrustedMatch(catalog, pinned.bundle, pinned.digest)}
+              onSave={(taxInputs) => saveTaxInputs(taxYear, taxInputs)}
+            />
+          )}
           {tab === "documents" && (
             <>
-              <div className="year-picker">
-                <YearOverview manifest={manifest} taxYear={taxYear} years={years} pinned={pinned?.bundle ?? null} onYearChange={changeYear} />
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    const input = (e.currentTarget.elements.namedItem("newYear") as HTMLInputElement | null)?.value ?? "";
-                    addYear(input);
-                  }}
-                >
-                  <label>
-                    เพิ่มปีภาษี (ค.ศ.)
-                    <input name="newYear" type="number" min={1990} max={2600} />
-                  </label>
-                  <button type="submit">เพิ่มปี</button>
-                </form>
-              </div>
-              <TaxWorksheet
-                manifest={manifest}
-                taxYear={taxYear}
-                bundle={pinned?.bundle ?? null}
-                ruleDigest={pinned?.digest ?? null}
-                onSave={(taxInputs) => saveTaxInputs(taxYear, taxInputs)}
-              />
-              <div className="grid">
-                <DocumentList
-                  records={yearRecords}
-                  selectedId={selectedId}
-                  onSelect={selectRecord}
-                  onAdd={() => void addRecord()}
-                  onTrash={(id) => void trashRecord(id)}
-                  onRestore={(id) => void restoreRecord(id)}
-                  onPurge={(id) => void purgeRecord(id)}
-                />
-                <div className="inspector-container">
-                  {selected ? (
-                    <div className={`inspector-dock ${preview ? "has-preview" : ""}`}>
-                      <DocumentEditor
-                        key={selected.id}
-                        record={selected}
-                        attachments={allAttachments}
-                        missingNames={missingForRecord(selected)}
-                        onSave={(draft) => saveRecord(selected.id, draft)}
-                        onUnsavedChange={handleUnsaved}
-                        onAddFile={addFile}
-                        onLink={(attId) => linkAttachment(selected, attId)}
-                        onUnlink={(attId) => unlinkAttachment(selected, attId)}
-                        onPreview={(attId) => void previewAttachment(attId)}
-                      />
-                      {preview && (
-                        <section aria-labelledby="preview-title" className="preview-panel slip-viewer">
-                          <div className="slip-viewer-header">
-                            <h2 id="preview-title" style={{ fontSize: "14px", margin: 0, color: "#fff" }}>
-                              ตัวอย่าง: {preview.attachment.displayName}
-                            </h2>
-                            <button type="button" onClick={() => setPreview(null)}>✕ ปิดตัวอย่าง</button>
-                          </div>
-                          {preview.attachment.mediaType === "application/pdf" ? (
-                            <PdfPreview bytes={preview.bytes} />
-                          ) : (
-                            <ImagePreview bytes={preview.bytes} mediaType={preview.attachment.mediaType === "image/png" ? "image/png" : "image/jpeg"} />
-                          )}
-                        </section>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="card" style={{ padding: "40px 24px", textAlign: "center", color: "var(--ink-muted)" }}>
-                      <p style={{ fontSize: "16px", fontWeight: 600, color: "var(--ink-dark)" }}>ยังไม่ได้เลือกรายการ</p>
-                      <p>เลือกรายการเอกสารจากรายการทางซ้ายเพื่อตรวจสอบ หรือคลิก "+ เพิ่มรายการ" เพื่อเริ่มบันทึก</p>
-                    </div>
-                  )}
+              <details className="task-details">
+                <summary>สรุปเอกสารและความคืบหน้าปี {taxYear}</summary>
+                <YearOverview manifest={manifest} taxYear={taxYear} pinned={pinned?.bundle ?? null} />
+              </details>
+                <div className="grid">
+                  <DocumentList
+                    records={yearRecords}
+                    selectedId={selectedId}
+                    onSelect={selectRecord}
+                    onAdd={() => void addRecord()}
+                    onTrash={(id) => void trashRecord(id)}
+                    onRestore={(id) => void restoreRecord(id)}
+                    onPurge={(id) => requestPurge(id)}
+                  />
+                  <div className="inspector-container">
+                    {selected ? (
+                      <div className={`inspector-dock ${preview ? "has-preview" : ""}`}>
+                        <DocumentEditor
+                          key={selected.id}
+                          record={selected}
+                          attachments={allAttachments}
+                          missingNames={missingForRecord(selected)}
+                          onSave={(draft) => saveRecord(selected.id, draft)}
+                          onUnsavedChange={handleUnsaved}
+                          onAddFile={addFile}
+                          onLink={(attId) => linkAttachment(selected, attId)}
+                          onUnlink={(attId) => unlinkAttachment(selected, attId)}
+                          onPreview={(attId) => void previewAttachment(attId)}
+                        />
+                        {preview && (
+                          <section aria-labelledby="preview-title" className="preview-panel slip-viewer">
+                            <div className="slip-viewer-header">
+                              <h2 id="preview-title" style={{ fontSize: "14px", margin: 0, color: "#fff" }}>
+                                ตัวอย่าง: {preview.attachment.displayName}
+                              </h2>
+                              <button type="button" onClick={() => setPreview(null)}>✕ ปิดตัวอย่าง</button>
+                            </div>
+                            {preview.attachment.mediaType === "application/pdf" ? (
+                              <PdfPreview bytes={preview.bytes} />
+                            ) : (
+                              <ImagePreview bytes={preview.bytes} mediaType={preview.attachment.mediaType === "image/png" ? "image/png" : "image/jpeg"} />
+                            )}
+                          </section>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="card" style={{ padding: "40px 24px", textAlign: "center", color: "var(--ink-muted)" }}>
+                        <p style={{ fontSize: "16px", fontWeight: 600, color: "var(--ink-dark)" }}>ยังไม่ได้เลือกรายการ</p>
+                        <p>เลือกรายการเอกสารจากรายการทางซ้ายเพื่อตรวจสอบ หรือคลิก "+ เพิ่มรายการ" เพื่อเริ่มบันทึก</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
             </>
           )}
-          {tab === "rules" && (
+          {tab === "tools" && (
+            <>
+            <h2>เครื่องมือ</h2>
+            <details className="task-details" open={!pinned}>
+            <summary>ตรวจสอบและเลือกกฎภาษีปี {taxYear}</summary>
             <RuleReview
               taxYear={taxYear}
               pinned={pinned}
@@ -659,10 +725,11 @@ export function App() {
               latest={catalogEntryFor(catalog, taxYear)}
               busy={busy}
               onCheck={() => void checkRules()}
-              onPinLatest={() => void pinLatest()}
+              onPinLatest={() => requestPinLatest()}
             />
-          )}
-          {tab === "backup" && (
+            </details>
+            <details className="task-details" open>
+            <summary>สำรองและกู้คืนข้อมูล</summary>
             <BackupPanel
               root={root}
               session={session}
@@ -672,9 +739,115 @@ export function App() {
               onOpened={(newRoot, result) => attach(newRoot, result)}
               notify={(message) => setNotice(message)}
             />
+            </details>
+            </>
           )}
         </main>
       )}
+
+      <ModalDialog
+        isOpen={isAddYearOpen}
+        onClose={() => {
+          setIsAddYearOpen(false);
+          setNewYearInput("");
+        }}
+        title="เพิ่มปีภาษีใหม่"
+        icon="📅"
+        confirmText="เพิ่มปี"
+        cancelText="ยกเลิก"
+        onConfirm={() => {
+          if (newYearInput.trim()) {
+            addYear(newYearInput.trim());
+            setIsAddYearOpen(false);
+            setNewYearInput("");
+          }
+        }}
+      >
+        <form
+          id="add-year-modal-form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (newYearInput.trim()) {
+              addYear(newYearInput.trim());
+              setIsAddYearOpen(false);
+              setNewYearInput("");
+            }
+          }}
+        >
+          <label style={{ display: "block", marginBottom: "8px", fontWeight: 600, fontSize: "14px" }}>
+            เพิ่มปีภาษี (ค.ศ.)
+            <input
+              name="newYear"
+              type="number"
+              min={1990}
+              max={2600}
+              value={newYearInput}
+              onChange={(e) => setNewYearInput(e.target.value)}
+              placeholder="เช่น 2026"
+              style={{
+                display: "block",
+                width: "100%",
+                marginTop: "8px",
+                padding: "10px 12px",
+                fontSize: "15px",
+                borderRadius: "6px",
+                border: "1px solid var(--border-subtle)",
+                boxSizing: "border-box",
+              }}
+              autoFocus
+            />
+          </label>
+          <p style={{ margin: "6px 0 0", fontSize: "13px", color: "var(--ink-muted)", lineHeight: 1.5 }}>
+            ระบุปีภาษี ค.ศ. เช่น 2025, 2026 (ระบบรองรับ ค.ศ. 1990 - 2600 / พ.ศ. 2533 - 3143)
+          </p>
+        </form>
+      </ModalDialog>
+
+      <ModalDialog
+        isOpen={purgeCandidateId !== null}
+        onClose={() => setPurgeCandidateId(null)}
+        title="ยืนยันการลบรายการถาวร"
+        variant="danger"
+        icon="⚠️"
+        confirmText="ลบรายการถาวร"
+        cancelText="ยกเลิก"
+        onConfirm={() => {
+          if (purgeCandidateId) {
+            const id = purgeCandidateId;
+            setPurgeCandidateId(null);
+            void executePurge(id);
+          }
+        }}
+      >
+        <p style={{ margin: "0 0 12px", lineHeight: "1.6" }}>
+          คุณต้องการ<strong>ลบรายการนี้ถาวร</strong>หรือไม่?
+        </p>
+        <p style={{ margin: 0, fontSize: "13.5px", color: "var(--danger-text, #b91c1c)", lineHeight: "1.5" }}>
+          ไฟล์แนบที่ไม่มีรายการอื่นอ้างถึงจะถูกลบจากโฟลเดอร์ และสำเนาสำรองเก่าที่อ้างไฟล์นั้นจะถูกลบถาวร ไม่สามารถย้อนกลับได้ หากยังไม่มีข้อมูลสำรองล่าสุด ควรสำรอง ZIP ก่อนดำเนินการ
+        </p>
+      </ModalDialog>
+
+      <ModalDialog
+        isOpen={pinConfirmOpen}
+        onClose={() => setPinConfirmOpen(false)}
+        title={`ปักหมุดกฎภาษีปี ${taxYear}`}
+        variant="warning"
+        icon="📌"
+        confirmText="ยืนยันการปักกฎ"
+        cancelText="ยกเลิก"
+        onConfirm={() => {
+          setPinConfirmOpen(false);
+          void executePin();
+        }}
+      >
+        <p style={{ margin: "0 0 12px", lineHeight: "1.6" }}>
+          ยืนยันการปักกฎปี <strong>{taxYear}</strong> เป็นเวอร์ชัน{" "}
+          <strong>{catalogEntryFor(catalog, taxYear)?.version}</strong>?
+        </p>
+        <p style={{ margin: 0, fontSize: "13.5px", color: "var(--ink-muted)", lineHeight: "1.5" }}>
+          ยอดที่คุณกรอกไว้จะไม่เปลี่ยน รายการที่ตรวจทานแล้วจะไม่ถูกเปลี่ยนสถานะโดยอัตโนมัติ
+        </p>
+      </ModalDialog>
     </div>
   );
 }

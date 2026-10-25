@@ -15,15 +15,9 @@ export function WorkspaceScreen({ supported, setupPending, onOpen, onCreate, onS
   return (
     <section className="entry card" aria-labelledby="entry-title">
       <div className="entry-header">
-        <span className="vault-badge">Local Vault</span>
+        <span className="vault-badge">เก็บบนเครื่อง · ไม่ต้องเข้าสู่ระบบ</span>
         <h1 id="entry-title">NexTHTax เอกสารภาษีบนเครื่อง</h1>
         <p>ไม่ต้องสมัครสมาชิก ข้อมูลและไฟล์แนบเก็บในโฟลเดอร์ที่คุณเลือกบนเครื่องนี้ แอปไม่ส่งข้อมูลส่วนบุคคลไปยังเซิร์ฟเวอร์</p>
-      </div>
-
-      <div className="entry-guarantees" aria-label="คุณสมบัติความปลอดภัย">
-        <span className="guarantee-chip">✓ 100% On-Device</span>
-        <span className="guarantee-chip">✓ Zero Cloud Leak</span>
-        <span className="guarantee-chip">✓ Private Local Storage</span>
       </div>
 
       <p className="warning">ข้อมูลอยู่ในโฟลเดอร์ของคุณเท่านั้น โปรดสำรองข้อมูล (ZIP) เป็นระยะ และโฟลเดอร์ที่ซิงก์คลาวด์อาจอัปโหลดไฟล์เองตามการตั้งค่าของระบบ</p>

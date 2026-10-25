@@ -21,7 +21,8 @@ async function createWorkspaceWithRecord(page: Page, title: string, category: st
   await page.getByRole("button", { name: "เลือกโฟลเดอร์ว่างเพื่อเริ่มใหม่" }).click();
   await page.getByLabel(/ชื่อผู้เสียภาษี/).fill("ผู้ทดสอบ");
   await page.getByRole("button", { name: "สร้างข้อมูลในโฟลเดอร์นี้" }).click();
-  await page.getByRole("button", { name: "เพิ่มรายการ" }).click();
+  await page.getByRole("button", { name: "เอกสาร", exact: true }).click();
+  await page.getByRole("button", { name: "+ เพิ่มรายการ", exact: true }).click();
   const editor = page.getByRole("form", { name: "แก้ไขรายการ" });
   await editor.getByLabel(/^หมวด/).selectOption(category);
   await editor.getByLabel(/ประเภทเอกสารย่อย/).selectOption(subtype);
@@ -32,7 +33,8 @@ async function createWorkspaceWithRecord(page: Page, title: string, category: st
 async function reopenFolder(page: Page): Promise<void> {
   await page.reload();
   await page.getByRole("button", { name: "เปิดโฟลเดอร์ข้อมูลที่มีอยู่" }).click();
-  await expect(page.getByRole("heading", { name: "รายการเอกสาร" })).toBeVisible();
+  await page.getByRole("button", { name: "เอกสาร", exact: true }).click();
+  await expect(page.getByRole("heading", { name: /รายการเอกสาร/ })).toBeVisible();
 }
 
 test("a saved subtype survives reload and reopen", async ({ page }) => {

@@ -838,7 +838,7 @@ legend {
 
 /* Print Stylesheet */
 @media print {
-  .app-header, .vault-bar, .tabs, .documents, .editor, .backup, .notice, .update, .warning, button, form, nav, .preview-panel, .slip-viewer, .grid, .workbench-grid, .rules {
+  .app-header, .vault-bar, .tabs, .sub-tabs, .documents, .editor, .backup, .notice, .update, .warning, button, form, nav, .preview-panel, .slip-viewer, .grid, .workbench-grid, .rules {
     display: none !important;
   }
   .overview {
@@ -859,4 +859,186 @@ legend {
     background: #fff;
     color: #000;
   }
+}
+
+/* Modal & Dialog System */
+dialog.vault-modal {
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  padding: 0;
+  background: var(--card-bg);
+  box-shadow: 0 24px 48px rgba(17, 24, 39, 0.25);
+  max-width: 520px;
+  width: 90%;
+  color: var(--ink-body);
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  z-index: 1000;
+  overflow: hidden;
+}
+
+dialog.vault-modal::backdrop {
+  background: rgba(17, 24, 39, 0.6);
+  backdrop-filter: blur(4px);
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  background: var(--slate-surface);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.modal-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.modal-icon {
+  font-size: 18px;
+}
+
+.modal-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--ink-dark);
+}
+
+.modal-close-btn {
+  background: none;
+  border: none;
+  font-size: 16px;
+  color: var(--ink-muted);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+}
+
+.modal-close-btn:hover {
+  color: var(--ink-dark);
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.modal-body {
+  padding: 20px;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 20px;
+  background: var(--slate-surface);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.btn-warning {
+  background: var(--primary-orange-deep);
+  border-color: var(--primary-orange-deep);
+  color: #fff;
+  font-weight: 600;
+}
+
+.btn-warning:hover:not(:disabled) {
+  background: var(--primary-orange-hover);
+  border-color: var(--primary-orange-hover);
+}
+
+/* Worksheet Card Layout */
+.worksheet-card {
+  max-width: 100%;
+  margin: 16px 0;
+  text-align: left;
+}
+
+.worksheet-card h3 {
+  font-size: 18px;
+  margin-bottom: 8px;
+}
+
+.worksheet-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+  gap: 16px;
+  margin: 14px 0;
+}
+
+/* One task at a time; secondary detail stays out of the main reading path. */
+.workspace-toolbar {
+  display: flex;
+  align-items: end;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 16px 0;
+}
+
+.task-details {
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--card-bg);
+  padding: 14px 16px;
+  margin: 16px 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.task-details > summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--ink-dark);
+  padding: 4px 0;
+}
+
+.task-details[open] > summary {
+  margin-bottom: 12px;
+}
+
+.worksheet-card .form-controls {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+  box-shadow: none;
+}
+
+
+.worksheet-card h2 { margin-top: 0; }
+.worksheet-card h3 { margin-top: 28px; }
+.worksheet-card label { min-width: 0; }
+.worksheet-card input:not([type="checkbox"]), .worksheet-card select { width: 100%; }
+.worksheet-card label:has(> input[type="checkbox"]) {
+  flex-direction: row;
+  align-items: start;
+  gap: 8px;
+}
+.worksheet-card input[type="checkbox"] {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  margin-top: 3px;
+}
+
+:where(button, input, select, summary):focus-visible {
+  outline: 3px solid var(--primary-orange-deep);
+  outline-offset: 3px;
+}
+
+@media (max-width: 700px) {
+  .vault-bar { flex-direction: column; align-items: stretch; }
+  .vault-meta { gap: 8px; }
+  .save-state-pill { border-radius: 6px; }
+  .tabs { flex-wrap: wrap; }
+  .task-details { padding: 12px; }
+  .worksheet-card fieldset { min-width: 0; }
+}
+
+@media print {
+  .workspace-toolbar { display: none; }
 }

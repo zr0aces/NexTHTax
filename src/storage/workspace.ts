@@ -1,4 +1,4 @@
-import { MAX_ATTACHMENT_BYTES, MAX_METADATA_BYTES, MEDIA_EXTENSIONS, SCHEMA_VERSION, type Attachment, type Manifest, type LegacyManifest, type StoredManifest } from "../domain/schema";
+import { MAX_ATTACHMENT_BYTES, MAX_METADATA_BYTES, MEDIA_EXTENSIONS, SCHEMA_VERSION, type Attachment, type Manifest, type PriorManifest, type StoredManifest } from "../domain/schema";
 import { readImageHeader } from "../domain/imageHeaders";
 import { acquireWriterLock, type WriterLock } from "./locking";
 import { decodeManifest, decodeCurrentManifest, encodeManifest, validateManifest } from "./manifest";
@@ -35,7 +35,7 @@ export interface OpenResult {
   pendingCandidates: string[];
 }
 
-export interface UpgradeRequired { upgradeRequired: true; manifest: LegacyManifest; }
+export interface UpgradeRequired { upgradeRequired: true; manifest: PriorManifest; }
 
 export type AddAttachmentResult =
   | { status: "added"; attachment: Attachment; previewable: boolean }
@@ -67,7 +67,7 @@ export async function openWorkspace(root: DirHandleLike): Promise<OpenResult | {
     throw new StorageError("not-empty", "โฟลเดอร์นี้ไม่ว่างและไม่มี data.json ของ NexTHTax");
   }
   const manifest = decodeManifest(bytes);
-  if (manifest.schemaVersion === 1) return { upgradeRequired: true, manifest };
+  if (manifest.schemaVersion !== SCHEMA_VERSION) return { upgradeRequired: true, manifest };
   const baselineSha = await sha256Hex(bytes);
   const inventory = await inspectAttachments(root, manifest);
   const lock = await acquireWriterLock(manifest.workspaceId);
@@ -338,6 +338,12 @@ export class WorkspaceSession {
       if (idx < 0) throw new StorageError("invalid", "ไม่พบรายการที่จะลบ");
       const [removed] = next.records.splice(idx, 1);
       if (!removed) throw new StorageError("invalid", "ไม่พบรายการที่จะลบ");
+      for (const year of Object.values(next.years)) {
+        if (year.plan?.evidenceRecordId === recordId) {
+          year.plan.evidenceRecordId = null;
+          year.plan.completionDigest = null;
+        }
+      }
       const stillReferenced = new Set(next.records.flatMap((r) => r.attachmentIds));
       const purged: Attachment[] = [];
       for (const aid of removed.attachmentIds) {
@@ -378,6 +384,7 @@ export class WorkspaceSession {
         eligibility: existing?.eligibility ?? {},
         taxInputs: existing?.taxInputs ?? null,
         scenarios: existing?.scenarios ?? [],
+        plan: existing?.plan ?? null,
       };
       await this.commitLocked(next);
       return this.manifestState;

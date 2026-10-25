@@ -1,10 +1,10 @@
 import { z } from "zod";
 import { CATEGORY_IDS, REVIEW_STATUSES, SUBCATEGORY_IDS, isSubcategoryApplicable } from "./documents";
-import { taxInputsSchema, taxScenarioSchema } from "./taxInputs";
+import { taxInputsSchema, taxScenarioSchema, taxPlanSchema } from "./taxInputs";
 import { MAX_SAFE_SATANG } from "./money";
 import { isSupportedTaxYear, isValidIsoDate } from "./years";
 
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 export const MAX_ATTACHMENT_BYTES = 100 * 1024 * 1024;
 export const MAX_METADATA_BYTES = 20 * 1024 * 1024;
 
@@ -73,10 +73,12 @@ export const legacyYearSchema = z.strictObject({
   eligibility: z.record(z.string().max(64), z.enum(["yes", "no", "unknown"])),
 });
 
-export const yearSchema = legacyYearSchema.extend({
+export const v2YearSchema = legacyYearSchema.extend({
   taxInputs: taxInputsSchema.nullable(),
   scenarios: z.array(taxScenarioSchema).max(20),
 });
+
+export const yearSchema = v2YearSchema.extend({ plan: taxPlanSchema.nullable().optional() });
 
 const manifestFields = {
     schemaVersion: z.literal(1),
@@ -109,12 +111,13 @@ function checkReferences(m: z.infer<typeof legacyRoot>, ctx: z.RefinementCtx) {
 }
 
 export const legacyManifestSchema = legacyRoot.superRefine(checkReferences);
-export const manifestSchema = z.strictObject({
+const v2Root = z.strictObject({
   ...manifestFields,
-  schemaVersion: z.literal(SCHEMA_VERSION),
-  years: z.record(z.string(), yearSchema),
+  schemaVersion: z.literal(2),
+  years: z.record(z.string(), v2YearSchema),
   records: z.array(recordSchema).max(20000),
-}).superRefine((m, ctx) => {
+});
+function checkTaxReferences(m: z.infer<typeof v2Root>, ctx: z.RefinementCtx) {
   checkReferences({ ...m, schemaVersion: 1 }, ctx);
   for (const year of Object.values(m.years)) {
     const seen = new Set<string>();
@@ -132,10 +135,29 @@ export const manifestSchema = z.strictObject({
     const scenarioIds = year.scenarios.map((s) => s.id);
     if (new Set(scenarioIds).size !== scenarioIds.length) ctx.addIssue({ code: "custom", message: "scenario ID ซ้ำ" });
   }
+}
+export const v2ManifestSchema = v2Root.superRefine(checkTaxReferences);
+export const manifestSchema = v2Root.extend({
+  schemaVersion: z.literal(SCHEMA_VERSION),
+  years: z.record(z.string(), yearSchema),
+}).superRefine((m, ctx) => {
+  checkTaxReferences({ ...m, schemaVersion: 2 }, ctx);
+  for (const year of Object.values(m.years)) {
+    if (!year.plan) continue;
+    const scenario = year.scenarios.find((s) => s.id === year.plan!.scenarioId);
+    if (!scenario || scenario.contributions.length !== 1 || scenario.contributions[0]?.subcategory !== "insurance_health") {
+      ctx.addIssue({ code: "custom", message: "แผนต้องอ้างทางเลือกประกันสุขภาพหนึ่งรายการในปีเดียวกัน" });
+    }
+    if (year.plan.evidenceRecordId !== null && !m.records.some((r) => r.id === year.plan!.evidenceRecordId && r.taxYear === year.taxYear)) {
+      ctx.addIssue({ code: "custom", message: "หลักฐานแผนไม่มีหรืออยู่คนละปี" });
+    }
+  }
 });
 
+export type V2Manifest = z.infer<typeof v2ManifestSchema>;
+export type PriorManifest = LegacyManifest | V2Manifest;
 export type LegacyManifest = z.infer<typeof legacyManifestSchema>;
-export type StoredManifest = LegacyManifest | Manifest;
+export type StoredManifest = PriorManifest | Manifest;
 
 export type Attachment = z.infer<typeof attachmentSchema>;
 export type RecordEntry = z.infer<typeof recordSchema>;

@@ -1,5 +1,5 @@
-import { type LegacyManifest, type Manifest, type StoredManifest, MAX_ATTACHMENT_BYTES, MAX_METADATA_BYTES } from "../domain/schema";
-import { bundlePath, ruleBundleSchema } from "../domain/rules";
+import { SCHEMA_VERSION, type PriorManifest, type LegacyManifest, type Manifest, type StoredManifest, MAX_ATTACHMENT_BYTES, MAX_METADATA_BYTES } from "../domain/schema";
+import { bundlePath, parseRuleBundle } from "../domain/rules";
 import { checkBudget, LIMITS } from "./capacity";
 import { type DirHandleLike, StorageError, listNames, readFileBytes, resolveDir, writeVerified } from "./fs";
 import { sha256Hex } from "./hash";
@@ -17,10 +17,16 @@ type ReadBytes = (path: string) => Promise<Uint8Array>;
 /** Pure explicit upgrade. Legacy data is never classified or used to infer tax facts. */
 export function upgradeManifestV1(legacy: LegacyManifest, at = new Date().toISOString()): Manifest {
   return validateManifest({
-    ...legacy, schemaVersion: 2, revision: legacy.revision + 1, updatedAt: at,
+    ...legacy, schemaVersion: SCHEMA_VERSION, revision: legacy.revision + 1, updatedAt: at,
     records: legacy.records.map((r) => ({ ...r, subcategory: null })),
     years: Object.fromEntries(Object.entries(legacy.years).map(([key, year]) => [key, { ...year, taxInputs: null, scenarios: [] }])),
   });
+}
+
+/** All upgrades are explicit copies; v2 keeps its records, worksheet, scenarios and history. */
+export function upgradeManifest(prior: PriorManifest, at = new Date().toISOString()): Manifest {
+  if (prior.schemaVersion === 1) return upgradeManifestV1(prior, at);
+  return validateManifest({ ...prior, schemaVersion: SCHEMA_VERSION, revision: prior.revision + 1, updatedAt: at });
 }
 
 /** Incoming hashes are data, not proof that this user confirmed imported facts. */
@@ -32,6 +38,10 @@ export function clearImportedConfirmations(manifest: Manifest): Manifest {
       changed ||= year.taxInputs.confirmedSourcesDigest !== null || year.taxInputs.confirmedWorksheetDigest !== null;
       year.taxInputs.confirmedSourcesDigest = null;
       year.taxInputs.confirmedWorksheetDigest = null;
+    }
+    if (year.plan) {
+      changed ||= year.plan.completionDigest !== null;
+      year.plan.completionDigest = null;
     }
     for (const scenario of year.scenarios) {
       changed ||= scenario.confirmedChoiceDigest !== null;
@@ -65,8 +75,8 @@ async function validateInventory(files: Inventory, current: StoredManifest, read
       let parsed: unknown;
       try { parsed = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(await read(path))); }
       catch { throw new StorageError("invalid", "ไฟล์กฎไม่ใช่ JSON ที่ถูกต้อง"); }
-      const result = ruleBundleSchema.safeParse(parsed);
-      if (!result.success || path !== bundlePath(result.data.taxYear, result.data.version)) throw new StorageError("invalid", "ไฟล์กฎ/ชื่อไฟล์ไม่ตรงกัน");
+      const bundle = parseRuleBundle(parsed);
+      if (!bundle || path !== bundlePath(bundle.taxYear, bundle.version)) throw new StorageError("invalid", "ไฟล์กฎ/ชื่อไฟล์ไม่ตรงกัน");
     } else if (!ATTACHMENT.test(path)) throw new StorageError("recovery", "พบ candidate ค้างหรือไฟล์นอก namespace กรุณาตรวจก่อนย้าย");
   }
   for (const path of files.keys()) if (ATTACHMENT.test(path) && !used.has(path)) throw new StorageError("recovery", "พบไฟล์แนบค้างที่ยังไม่ได้ตรวจสอบ จึงยังไม่ย้ายแฟ้ม");
@@ -132,7 +142,7 @@ export async function migrateWorkspaceIntoEmptyFolder(source: DirHandleLike, tar
   if ((await listNames(target)).length !== 0) throw new StorageError("not-empty", "โฟลเดอร์ปลายทางต้องว่าง");
   const baseline = await readBounded(source, "data.json");
   const legacy = decodeManifest(baseline);
-  if (legacy.schemaVersion !== 1) throw new StorageError("invalid", "แฟ้มนี้ไม่ใช่ข้อมูลรุ่นเดิม");
+  if (legacy.schemaVersion === SCHEMA_VERSION) throw new StorageError("invalid", "แฟ้มนี้ไม่ใช่ข้อมูลรุ่นเดิม");
   const baselineHash = await sha256Hex(baseline);
   const lock = await acquireWriterLock(legacy.workspaceId);
   if (!lock.granted) throw new StorageError("read-only", "ยังย้ายไม่ได้ มีหน้าต่างอื่นแก้ไขอยู่หรือไม่รองรับการล็อก");
@@ -142,7 +152,7 @@ export async function migrateWorkspaceIntoEmptyFolder(source: DirHandleLike, tar
     const files = await readSourceInventory(source);
     if (files.get("data.json")?.sha256 !== baselineHash) throw new StorageError("conflict", "ข้อมูลต้นฉบับเปลี่ยนก่อนย้าย");
     await validateInventory(files, legacy, (path) => readBounded(source, path));
-    const current = upgradeManifestV1(legacy);
+    const current = upgradeManifest(legacy);
     checkInventoryBudget(files, current);
     // All source validation and budget checks finish before the first target write.
     for (const [path, info] of files) {

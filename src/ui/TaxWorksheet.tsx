@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { parseBahtInput, formatSatang } from "../domain/money";
 import { numericBlockers, type AnyRuleBundle } from "../domain/rules";
 import type { Manifest, RecordEntry } from "../domain/schema";
-import { compareHealthScenarios, type HealthScenario, type ScenarioOutcome } from "../domain/scenarios";
+import { TaxPlanPanel, type TaxPlanPanelProps } from "./TaxPlanPanel";
 import { calculateSalaryCase, type Answer, type SalaryCaseResult } from "../domain/tax";
 import {
   confirmationState,
@@ -54,6 +54,11 @@ interface Props {
   bundle: AnyRuleBundle | null;
   ruleDigest: string | null;
   onSave: (taxInputs: TaxInputs) => Promise<void>;
+  disabled?: boolean;
+  onUnsavedChange?: (dirty: boolean) => void;
+  onSavePlan?: TaxPlanPanelProps["onSave"];
+  onVerifyPlanEvidence?: TaxPlanPanelProps["onVerifyEvidence"];
+  trustedRules?: boolean;
 }
 
 const amountText = (satang: number | null | undefined): string => (satang === null || satang === undefined ? "" : formatSatang(satang));
@@ -84,6 +89,25 @@ function draftFrom(saved: TaxInputs | null): Draft {
 /** Builds the persisted worksheet from the draft. Confirmations are always cleared on save. */
 function buildTaxInputs(d: Draft, prev: TaxInputs | null, records: RecordEntry[], taxYear: number): { value: TaxInputs | null; errors: string[] } {
   const errors: string[] = [];
+  // Imported worksheets may be richer than this deliberately narrow form. Never flatten hidden facts.
+  if (prev) {
+    const salaryItems = prev.incomeItems.filter((i) => i.kind === "salary");
+    const otherItems = prev.incomeItems.filter((i) => i.kind !== "salary");
+    const unsupportedIncome = prev.incomeItems.some((i) => {
+      if (i.electionGroup !== null) return true;
+      if (i.kind === "salary") return i.treatment !== "progressive";
+      return i.kind !== "domestic-interest" || i.treatment !== "unknown" ||
+        i.grossAmountSatang !== null || i.withheldAmountSatang !== null || i.sourceRecordIds.length > 0;
+    });
+    const healthItems = prev.deductions.filter((i) => i.category === "deduction_insurance" && i.subcategory === "insurance_health");
+    const socialItems = prev.deductions.filter((i) => i.category === "deduction_social_security" && i.subcategory === null);
+    const hiddenDeductions = healthItems.length + socialItems.length !== prev.deductions.length || prev.deductions.some((i) => i.sourceRecordIds.length > 0);
+    if (salaryItems.length > 1 || otherItems.length > 1 || unsupportedIncome || hiddenDeductions ||
+        healthItems.length > 1 || socialItems.length > 1 ||
+        prev.facts.separateFiling !== "unknown" || prev.facts.spouseHasIncome !== "unknown") {
+      return { value: null, errors: ["ข้อมูลที่นำเข้ามีรายละเอียดเกินหน้าจอแบบง่าย จึงไม่บันทึกทับข้อมูลเดิม กรุณาเก็บต้นฉบับไว้และใช้ผู้เชี่ยวชาญตรวจสอบ"] };
+    }
+  }
   const money = (text: string, label: string): number | null => {
     const r = parseBahtInput(text);
     if (!r.ok) {
@@ -208,42 +232,15 @@ function describeResult(result: SalaryCaseResult | null): ReactNode {
   );
 }
 
-function describeScenarios(outcome: ScenarioOutcome | null): ReactNode {
-  if (!outcome) return null;
-  if (outcome.status === "blocked") {
-    return (
-      <div role="status">
-        <p>ยังไม่เปรียบเทียบทางเลือก:</p>
-        <ul>{outcome.reasons.map((r) => <li key={r}>{r}</li>)}</ul>
-      </div>
-    );
-  }
-  const winnerText =
-    outcome.winnerIds.length === 0
-      ? "ไม่มีทางเลือกที่ประเมินได้ครบและเป็นไปได้"
-      : `ดีที่สุดใน ${outcome.evaluatedCount} ทางเลือกที่ประเมินได้ครบ; ${outcome.notEvaluatedCount} ทางเลือกยังประเมินไม่ได้`;
-  return (
-    <div role="status">
-      <p>{winnerText}</p>
-      <ul>
-        {outcome.rows.map((r) => (
-          <li key={r.id}>
-            {r.id}: {r.status === "complete" ? `ประหยัดภาษีก่อนหัก ณ ที่จ่าย ${formatSatang(r.savingSatang)} บาท` : r.reason}
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-export function TaxWorksheet({ manifest, taxYear, bundle, ruleDigest, onSave }: Props) {
+export function TaxWorksheet({ manifest, taxYear, bundle, ruleDigest, onSave, disabled = false, onUnsavedChange, onSavePlan, onVerifyPlanEvidence, trustedRules = false }: Props) {
   const records = manifest.records;
   const saved: TaxInputs | null = manifest.years[String(taxYear)]?.taxInputs ?? null;
   const [draft, setDraft] = useState<Draft>(() => draftFrom(saved));
   const [savedKey, setSavedKey] = useState(() => JSON.stringify(saved));
+  const [pending, setPending] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [digests, setDigests] = useState<{ sources: string; worksheet: string } | null>(null);
-  const [scenario, setScenario] = useState({ label: "เบี้ยสุขภาพเพิ่ม", additional: "", eligible: "unknown" as Answer, budget: "" });
+  const [planDirty, setPlanDirty] = useState(false);
 
   // Re-seed the draft only when the persisted worksheet changes, so typing is never overwritten.
   const currentKey = JSON.stringify(saved);
@@ -283,39 +280,41 @@ export function TaxWorksheet({ manifest, taxYear, bundle, ruleDigest, onSave }: 
   const set = <K extends keyof Draft>(key: K, value: Draft[K]) => setDraft((d) => ({ ...d, [key]: value }));
   const dirty = JSON.stringify(draft) !== JSON.stringify(draftFrom(saved));
 
+  useEffect(() => {
+    onUnsavedChange?.(dirty || planDirty);
+    return () => onUnsavedChange?.(false);
+  }, [dirty, planDirty, onUnsavedChange]);
+
   const save = async () => {
+    if (disabled || pending) return;
     const built = buildTaxInputs(draft, saved, records, taxYear);
     if (!built.value) {
       setMessage(built.errors.join("; "));
       return;
     }
+    setPending(true);
     try {
       await onSave(built.value);
       setMessage("บันทึกข้อมูลภาษีแล้ว ต้องยืนยันใหม่ก่อนใช้ผลคำนวณ");
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "บันทึกข้อมูลภาษีไม่สำเร็จ");
+    } finally {
+      setPending(false);
     }
   };
 
   const confirm = async () => {
-    if (!saved || !digests) return;
+    if (!saved || !digests || dirty || disabled || pending) return;
+    setPending(true);
     try {
       await onSave({ ...saved, confirmedSourcesDigest: digests.sources, confirmedWorksheetDigest: digests.worksheet });
       setMessage("ยืนยันตามข้อมูลที่บันทึกแล้ว การยืนยันนี้ใช้ตรวจการเปลี่ยนแปลงเท่านั้น");
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "ยืนยันไม่สำเร็จ");
+    } finally {
+      setPending(false);
     }
   };
-
-  const scenarioOutcome: ScenarioOutcome | null = useMemo(() => {
-    if (!mapped) return null;
-    const additional = parseBahtInput(scenario.additional);
-    if (!additional.ok || additional.satang === null) return null;
-    const budget = scenario.budget.trim() === "" ? null : parseBahtInput(scenario.budget);
-    if (budget && (!budget.ok || budget.satang === null)) return null;
-    const row: HealthScenario = { id: "s1", label: scenario.label, additionalHealthSatang: additional.satang, eligible: scenario.eligible };
-    return compareHealthScenarios(bundle, mapped, [row], budget?.satang ?? null);
-  }, [mapped, scenario, bundle]);
 
   const answer = (key: keyof Draft, text: string) => (
     <label>
@@ -329,62 +328,88 @@ export function TaxWorksheet({ manifest, taxYear, bundle, ruleDigest, onSave }: 
   );
 
   return (
-    <section aria-labelledby="worksheet-title" className="entry">
-      <h3 id="worksheet-title">ข้อมูลภาษีเงินเดือน ปี {taxYear}</h3>
+    <section aria-labelledby="worksheet-title" className="worksheet-card card">
+      <h2 id="worksheet-title">คำนวณและวางแผนภาษี ปี {taxYear}</h2>
+      <p>สำหรับผู้มีเงินเดือน โสด และเป็นผู้มีถิ่นที่อยู่ในไทย กรณีอื่นจะแจ้งว่ายังไม่รองรับ</p>
+      <p className="warning">เป็นเครื่องมือประมาณการ ไม่ใช่การยื่นภาษี ยังไม่แสดงยอดชำระหรือขอคืนจนกว่ากฎจะยืนยันครบ</p>
+      <details className="task-details">
+      <summary>ขอบเขตและข้อควรรู้ก่อนใช้</summary>
       <ul aria-label="ข้อจำกัดของการคำนวณ">
         {TAX_CAVEATS.map((c) => <li key={c}>{c}</li>)}
       </ul>
+      </details>
+      <h3>1. กรอกข้อมูลภาษีเงินเดือน</h3>
       <p className="muted">ช่องที่ว่างหมายถึงยังไม่ทราบ ไม่ใช่ 0 กรอก 0 หากไม่มีรายการนั้นจริง</p>
       <form onSubmit={(e) => e.preventDefault()}>
-        <label>เงินเดือนรวมทั้งปี (บาท)<input inputMode="decimal" value={draft.salary} onChange={(e) => set("salary", e.target.value)} /></label>
-        <label>ภาษีหัก ณ ที่จ่ายรวม (บาท)<input inputMode="decimal" value={draft.withheld} onChange={(e) => set("withheld", e.target.value)} /></label>
-        <label>เงินสมทบประกันสังคมที่จ่ายจริง (บาท)<input inputMode="decimal" value={draft.socialSecurity} onChange={(e) => set("socialSecurity", e.target.value)} /></label>
-        <label>เบี้ยประกันสุขภาพที่จ่ายจริง (บาท)<input inputMode="decimal" value={draft.health} onChange={(e) => set("health", e.target.value)} /></label>
-        <label>
-          <input type="checkbox" checked={draft.eligibilityConfirmed} onChange={(e) => set("eligibilityConfirmed", e.target.checked)} />
-          ยืนยันว่ารายการหักที่กรอกจ่ายจริงและเข้าเงื่อนไข
-        </label>
-        <label>อายุ ณ สิ้นปีภาษี<input inputMode="numeric" value={draft.age} onChange={(e) => set("age", e.target.value)} /></label>
-        <label>จำนวนบุตรหรือผู้อยู่ในอุปการะที่จะขอหัก<input inputMode="numeric" value={draft.dependents} onChange={(e) => set("dependents", e.target.value)} /></label>
-        {answer("resident", "อยู่ในประเทศไทยตลอดปีภาษี")}
-        {answer("married", "มีสถานภาพสมรส")}
-        {answer("elderly", "อายุ 65 ปีขึ้นไปหรือเป็นคนพิการ")}
-        {answer("otherIncome", "มีรายได้อื่นนอกจากเงินเดือน (ดอกเบี้ย เงินปันผล ฯลฯ)")}
-        {answer("otherClaims", "มีรายการลดหย่อนอื่น (ชีวิต กองทุน บริจาค ฯลฯ)")}
-        <label>
-          <input type="checkbox" checked={draft.incomeDone} onChange={(e) => set("incomeDone", e.target.checked)} />
-          รายได้และภาษีหัก ณ ที่จ่ายครบแล้ว
-        </label>
-        <label>
-          <input type="checkbox" checked={draft.deductionsDone} onChange={(e) => set("deductionsDone", e.target.checked)} />
-          รายการลดหย่อนครบแล้ว
-        </label>
-        <button type="button" onClick={() => void save()}>บันทึกข้อมูลภาษี</button>
-        {saved && <button type="button" disabled={!digests} onClick={() => void confirm()}>ยืนยันข้อมูลที่บันทึกแล้ว</button>}
+        <fieldset className="form-controls" disabled={disabled || pending}>
+        <legend className="sr-only">ข้อมูลภาษีเงินเดือน</legend>
+        <fieldset>
+          <legend>เงินได้และภาษีหัก ณ ที่จ่าย</legend>
+          <div className="worksheet-grid">
+            <label>เงินเดือนรวมทั้งปี (บาท)<input inputMode="decimal" value={draft.salary} onChange={(e) => set("salary", e.target.value)} /></label>
+            <label>ภาษีหัก ณ ที่จ่ายรวม (บาท)<input inputMode="decimal" value={draft.withheld} onChange={(e) => set("withheld", e.target.value)} /></label>
+          </div>
+          <label>
+            <input type="checkbox" checked={draft.incomeDone} onChange={(e) => set("incomeDone", e.target.checked)} />
+            รายได้และภาษีหัก ณ ที่จ่ายครบแล้ว
+          </label>
+        </fieldset>
+
+        <fieldset>
+          <legend>ค่าลดหย่อนภาษี</legend>
+          <div className="worksheet-grid">
+            <label>เงินสมทบประกันสังคมที่จ่ายจริง (บาท)<input inputMode="decimal" value={draft.socialSecurity} onChange={(e) => set("socialSecurity", e.target.value)} /></label>
+            <label>เบี้ยประกันสุขภาพที่จ่ายจริง (บาท)<input inputMode="decimal" value={draft.health} onChange={(e) => set("health", e.target.value)} /></label>
+          </div>
+          <label>
+            <input type="checkbox" checked={draft.eligibilityConfirmed} onChange={(e) => set("eligibilityConfirmed", e.target.checked)} />
+            ยืนยันว่ารายการหักที่กรอกจ่ายจริงและเข้าเงื่อนไข
+          </label>
+          <label>
+            <input type="checkbox" checked={draft.deductionsDone} onChange={(e) => set("deductionsDone", e.target.checked)} />
+            รายการลดหย่อนครบแล้ว
+          </label>
+        </fieldset>
+
+        <fieldset>
+          <legend>สถานะส่วนบุคคลและครอบครัว</legend>
+          <div className="worksheet-grid">
+            <label>อายุ ณ สิ้นปีภาษี<input inputMode="numeric" value={draft.age} onChange={(e) => set("age", e.target.value)} /></label>
+            <label>จำนวนบุตรหรือผู้อยู่ในอุปการะที่จะขอหัก<input inputMode="numeric" value={draft.dependents} onChange={(e) => set("dependents", e.target.value)} /></label>
+          </div>
+          <div className="worksheet-grid">
+            {answer("resident", "อยู่ในประเทศไทยตลอดปีภาษี")}
+            {answer("married", "มีสถานภาพสมรส")}
+            {answer("elderly", "อายุ 65 ปีขึ้นไปหรือเป็นคนพิการ")}
+            {answer("otherIncome", "มีรายได้อื่นนอกจากเงินเดือน (ดอกเบี้ย เงินปันผล ฯลฯ)")}
+            {answer("otherClaims", "มีรายการลดหย่อนอื่น (ชีวิต กองทุน บริจาค ฯลฯ)")}
+          </div>
+        </fieldset>
+
+        <div className="actions" style={{ marginTop: "16px" }}>
+          <button type="button" className="btn-primary" onClick={() => void save()}>บันทึกข้อมูลภาษี</button>
+          {saved && <button type="button" disabled={!digests || dirty} onClick={() => void confirm()}>ยืนยันข้อมูลที่บันทึกแล้ว</button>}
+        </div>
+        </fieldset>
       </form>
       {dirty && <p role="status">มีการแก้ไขที่ยังไม่บันทึก</p>}
       {message && <p role="status">{message}</p>}
       {saved && <p role="status">สถานะการยืนยัน: {CONFIRMATION_LABEL[confirmation]}</p>}
       {!saved && <p>ยังไม่มีข้อมูลภาษีที่บันทึกสำหรับปีนี้</p>}
+      <h3>2. ตรวจผลจากข้อมูลที่บันทึก</h3>
+      {dirty && <p>ผลด้านล่างยังใช้ข้อมูลที่บันทึกครั้งก่อน บันทึกการแก้ไขก่อนเปรียบเทียบแผน</p>}
       {describeResult(result)}
       <p role="status">
         ยอดภาษีสุดท้าย ยอดชำระเพิ่ม และยอดขอคืน ยังไม่แสดง
         {blockers.length > 0 && <>: {blockers.join("; ")}</>}
       </p>
 
-      <h4>เปรียบเทียบเบี้ยประกันสุขภาพเพิ่ม (ไม่บันทึก)</h4>
-      <form onSubmit={(e) => e.preventDefault()}>
-        <label>จำนวนเบี้ยสุขภาพที่จะเพิ่ม (บาท)<input inputMode="decimal" value={scenario.additional} onChange={(e) => setScenario((s) => ({ ...s, additional: e.target.value }))} /></label>
-        <label>งบประมาณ (บาท, ไม่บังคับ)<input inputMode="decimal" value={scenario.budget} onChange={(e) => setScenario((s) => ({ ...s, budget: e.target.value }))} /></label>
-        <label>
-          เข้าเงื่อนไขหรือไม่
-          <select value={scenario.eligible} onChange={(e) => setScenario((s) => ({ ...s, eligible: e.target.value as Answer }))}>
-            {(["unknown", "yes", "no"] as const).map((a) => <option key={a} value={a}>{ANSWER_LABEL[a]}</option>)}
-          </select>
-        </label>
-      </form>
-      {!mapped && scenario.additional.trim() !== "" && <p role="status">บันทึกข้อมูลภาษีที่มีเงินเดือนก่อน จึงจะเปรียบเทียบได้</p>}
-      {describeScenarios(scenarioOutcome)}
+      {onSavePlan && onVerifyPlanEvidence && <TaxPlanPanel
+        manifest={manifest} taxYear={taxYear} bundle={bundle} ruleDigest={ruleDigest}
+        trustedRules={trustedRules} disabled={disabled || pending || dirty}
+        onUnsavedChange={setPlanDirty} onSave={onSavePlan} onVerifyEvidence={onVerifyPlanEvidence}
+      />}
+
     </section>
   );
 }

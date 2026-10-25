@@ -8,25 +8,16 @@ import { buddhistYear } from "../domain/years";
 interface Props {
   manifest: Manifest;
   taxYear: number;
-  years: number[];
   pinned: AnyRuleBundle | null;
-  onYearChange: (year: number) => void;
 }
 
 const DISCLAIMER =
   "สรุปนี้เป็นข้อมูลที่คุณบันทึกและยอดที่คุณเลือกใช้สิทธิ ไม่ใช่การคำนวณภาษีสุทธิ และไม่ใช่การรับรองสิทธิหรือความครบถ้วนสำหรับการยื่นภาษี";
 
 /** Year summary with evidence, user-selected claim base and unknown rule coverage kept separate. */
-export function YearOverview({ manifest, taxYear, years, pinned, onYearChange }: Props) {
+export function YearOverview({ manifest, taxYear, pinned }: Props) {
   const summary = summarizeYear(manifest.records, taxYear);
   const yearEntry = manifest.years[String(taxYear)];
-
-  const totalCount = summary.ok
-    ? summary.counts.reviewed + summary.counts["waiting-review"] + summary.counts["waiting-document"]
-    : 0;
-  const reviewedPct = summary.ok && totalCount > 0 ? (summary.counts.reviewed / totalCount) * 100 : 0;
-  const waitingReviewPct = summary.ok && totalCount > 0 ? (summary.counts["waiting-review"] / totalCount) * 100 : 0;
-  const waitingDocPct = summary.ok && totalCount > 0 ? (summary.counts["waiting-document"] / totalCount) * 100 : 0;
 
   return (
     <section aria-labelledby="overview-title" className="overview card">
@@ -34,54 +25,13 @@ export function YearOverview({ manifest, taxYear, years, pinned, onYearChange }:
         <h2 id="overview-title">
           สรุปปีภาษี {taxYear} (พ.ศ. {buddhistYear(taxYear)})
         </h2>
-        <label>
-          ปีภาษี
-          <select value={taxYear} onChange={(e) => onYearChange(Number(e.target.value))}>
-            {years.map((y) => (
-              <option key={y} value={y}>
-                {y} (พ.ศ. {buddhistYear(y)})
-              </option>
-            ))}
-          </select>
-        </label>
+
       </div>
 
       {!summary.ok ? (
         <p role="alert" className="error alert-danger">ยอดรวมเกินช่วงที่ระบบคำนวณได้อย่างแม่นยำ จึงไม่แสดงยอดรวม</p>
       ) : (
         <>
-          {/* Visual KPI Cards */}
-          <div className="kpi-stack" aria-label="ยอดรวมสำคัญ">
-            <div className="kpi-card">
-              <div className="kpi-label">ยอดตามหลักฐานเอกสาร (บาท)</div>
-              <div className="kpi-value">{formatSatang(summary.evidenceTotal)}</div>
-            </div>
-            <div className="kpi-card highlight">
-              <div className="kpi-label">ยอดที่ตรวจทานแล้ว (ใช้สิทธิ, บาท)</div>
-              <div className="kpi-value">{formatSatang(summary.reviewedClaimedTotal)}</div>
-              <div className="muted">จากยอดขอใช้สิทธิก่อนกฎ: {formatSatang(summary.claimedTotal)} บาท</div>
-            </div>
-            <div className="kpi-card">
-              <div className="kpi-label">หัก ณ ที่จ่ายที่บันทึกไว้ (50 ทวิ, บาท)</div>
-              <div className="kpi-value">{formatSatang(summary.withheldTotal)}</div>
-              <div className="muted">แสดงแยก ไม่ใช่ค่าลดหย่อน เป็นภาษีจ่ายล่วงหน้า</div>
-            </div>
-          </div>
-
-          {/* Verification Progress Meter */}
-          {totalCount > 0 && (
-            <div className="verification-gauge" aria-label="ความคืบหน้าการตรวจทาน">
-              <div className="kpi-label">
-                ความคืบหน้า: ตรวจทานแล้ว {summary.counts.reviewed} / รอตรวจ {summary.counts["waiting-review"]} / รอเอกสาร {summary.counts["waiting-document"]} รายการ
-              </div>
-              <div className="gauge-track">
-                <div className="gauge-seg-reviewed" style={{ width: `${reviewedPct}%` }} title={`ตรวจทานแล้ว: ${summary.counts.reviewed}`} />
-                <div className="gauge-seg-waiting-review" style={{ width: `${waitingReviewPct}%` }} title={`รอตรวจทาน: ${summary.counts["waiting-review"]}`} />
-                <div className="gauge-seg-waiting-doc" style={{ width: `${waitingDocPct}%` }} title={`รอเอกสาร: ${summary.counts["waiting-document"]}`} />
-              </div>
-            </div>
-          )}
-
           {/* Tabular totals for accessibility & test contracts */}
           <dl className="totals">
             <dt>ยอดตามหลักฐานเอกสาร (บาท)</dt>

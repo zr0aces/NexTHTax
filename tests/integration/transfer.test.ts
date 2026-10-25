@@ -182,7 +182,7 @@ describe("metadata JSON subtype and legacy conversion", () => {
     let asked = 0;
     const manifest = await importMetadataIntoEmptyFolder(target, legacy, () => { asked++; return true; });
     expect(asked).toBe(1);
-    expect(manifest.schemaVersion).toBe(2);
+    expect(manifest.schemaVersion).toBe(3);
     expect(manifest.revision).toBe(2);
     expect(manifest.records[0]?.subcategory).toBeNull();
     const opened = await openWorkspace(target);
@@ -263,7 +263,7 @@ describe("ZIP subtype and legacy conversion", () => {
     expect(await listTree(declined)).toEqual([]);
     const target = createMemoryFolder();
     const restored = await restoreZipIntoEmptyFolder(target, zip, () => true);
-    expect(restored.session.manifest.schemaVersion).toBe(2);
+    expect(restored.session.manifest.schemaVersion).toBe(3);
     expect(restored.session.manifest.records[0]?.subcategory).toBeNull();
     expect(await readTree(target, "data.json")).not.toEqual(legacy);
   });

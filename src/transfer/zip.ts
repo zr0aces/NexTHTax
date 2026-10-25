@@ -1,9 +1,10 @@
+import { SCHEMA_VERSION } from "../domain/schema";
 import { unzipSync, zipSync } from "fflate";
 import { z } from "zod";
 import { LIMITS } from "../storage/capacity";
 import { type DirHandleLike, StorageError, isNotFound, listNames, readFileBytes, resolveDir, writeVerified } from "../storage/fs";
 import { sha256Hex } from "../storage/hash";
-import { upgradeManifestV1, clearImportedConfirmations, validateWorkspaceFiles, assertMigrationBudget } from "../storage/migration";
+import { upgradeManifest, clearImportedConfirmations, validateWorkspaceFiles, assertMigrationBudget } from "../storage/migration";
 import { decodeManifest, encodeManifest } from "../storage/manifest";
 import { ATTACHMENT_DIR, DATA_FILE, RULES_DIR, openWorkspace, type OpenResult, type WorkspaceSession } from "../storage/workspace";
 import { RECOVERY_DIR } from "../storage/recovery";
@@ -136,12 +137,12 @@ export async function restoreZipIntoEmptyFolder(root: DirHandleLike, zipBytes: U
   }
   const workspaceFiles = new Map(Object.entries(extracted).filter(([path]) => path !== BACKUP_MANIFEST));
   // Legacy conversion has stricter preconditions (no pending candidates, exact references). Current ZIPs keep baseline restore behavior.
-  if (manifest.schemaVersion === 1) {
+  if (manifest.schemaVersion !== SCHEMA_VERSION) {
     await validateWorkspaceFiles(workspaceFiles, manifest);
     if (!confirmLegacy?.()) throw new StorageError("upgrade-required", "ยกเลิกการแปลง ZIP รุ่นเดิม ไม่มีการเขียนข้อมูล");
   }
-  const current = manifest.schemaVersion === 1 ? upgradeManifestV1(manifest) : clearImportedConfirmations(manifest);
-  if (manifest.schemaVersion === 1) assertMigrationBudget(workspaceFiles, current);
+  const current = manifest.schemaVersion !== SCHEMA_VERSION ? clearImportedConfirmations(upgradeManifest(manifest)) : clearImportedConfirmations(manifest);
+  if (manifest.schemaVersion !== SCHEMA_VERSION) assertMigrationBudget(workspaceFiles, current);
   const currentBytes = encodeManifest(current);
   const written: string[] = [];
   try {
