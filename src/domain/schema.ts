@@ -1,10 +1,10 @@
 import { z } from "zod";
 import { CATEGORY_IDS, REVIEW_STATUSES, SUBCATEGORY_IDS, LEGACY_SUBCATEGORY_IDS, isSubcategoryApplicable, type SubcategoryId } from "./documents";
-import { taxInputsSchema, taxScenarioSchema, taxPlanSchema, legacyTaxInputsSchema, legacyTaxScenarioSchema } from "./taxInputs";
+import { taxInputsSchema, taxScenarioSchema, taxPlanSchema, legacyTaxInputsSchema, legacyTaxScenarioSchema, v4TaxInputsSchema } from "./taxInputs";
 import { MAX_SAFE_SATANG } from "./money";
 import { isSupportedTaxYear, isValidIsoDate } from "./years";
 
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 5;
 export const MAX_ATTACHMENT_BYTES = 100 * 1024 * 1024;
 export const MAX_METADATA_BYTES = 20 * 1024 * 1024;
 
@@ -85,7 +85,11 @@ export const v2YearSchema = legacyYearSchema.extend({
   scenarios: z.array(legacyTaxScenarioSchema).max(20),
 });
 const v3YearSchema = v2YearSchema.extend({ plan: taxPlanSchema.nullable().optional() });
-export const yearSchema = v3YearSchema.extend({
+const v4YearSchema = v3YearSchema.extend({
+  taxInputs: v4TaxInputsSchema.nullable(),
+  scenarios: z.array(taxScenarioSchema).max(20),
+});
+export const yearSchema = v4YearSchema.extend({
   taxInputs: taxInputsSchema.nullable(),
   scenarios: z.array(taxScenarioSchema).max(20),
 });
@@ -128,7 +132,12 @@ const v2Root = z.strictObject({
   records: z.array(v2RecordSchema).max(20000),
 });
 const v3Root = v2Root.extend({ schemaVersion: z.literal(3), years: z.record(z.string(), v3YearSchema) });
-const currentRoot = v2Root.extend({
+const v4Root = v2Root.extend({
+  schemaVersion: z.literal(4),
+  years: z.record(z.string(), v4YearSchema),
+  records: z.array(recordSchema).max(20000),
+});
+const currentRoot = v4Root.extend({
   schemaVersion: z.literal(SCHEMA_VERSION),
   years: z.record(z.string(), yearSchema),
   records: z.array(recordSchema).max(20000),
@@ -167,15 +176,17 @@ function checkCurrentReferences(m: z.infer<typeof currentRoot>, ctx: z.Refinemen
 }
 export const v2ManifestSchema = v2Root.superRefine((m, ctx) => checkTaxReferences({ ...m, schemaVersion: SCHEMA_VERSION }, ctx));
 export const v3ManifestSchema = v3Root.superRefine((m, ctx) => checkCurrentReferences({ ...m, schemaVersion: SCHEMA_VERSION }, ctx));
+export const v4ManifestSchema = v4Root.superRefine((m, ctx) => checkCurrentReferences({ ...m, schemaVersion: SCHEMA_VERSION }, ctx));
 export const manifestSchema = currentRoot.superRefine(checkCurrentReferences);
 
 export function canStoreSubcategory(version: StoredManifest["schemaVersion"], subcategory: SubcategoryId | null): boolean {
-  return subcategory === null || version === 4 || (version !== 1 && LEGACY_SUBCATEGORY_IDS.some((id) => id === subcategory));
+  return subcategory === null || version >= 4 || (version !== 1 && LEGACY_SUBCATEGORY_IDS.some((id) => id === subcategory));
 }
 
 export type V3Manifest = z.infer<typeof v3ManifestSchema>;
 export type V2Manifest = z.infer<typeof v2ManifestSchema>;
-export type PriorManifest = LegacyManifest | V2Manifest | V3Manifest;
+export type V4Manifest = z.infer<typeof v4ManifestSchema>;
+export type PriorManifest = LegacyManifest | V2Manifest | V3Manifest | V4Manifest;
 export type LegacyManifest = z.infer<typeof legacyManifestSchema>;
 export type StoredManifest = PriorManifest | Manifest;
 

@@ -54,7 +54,7 @@ describe.each([2, 3] as const)("frozen schema %s taxonomy", (version) => {
     const before = await readTree(root, "data.json");
     const opened = await openWorkspace(root);
     if (!("session" in opened)) throw new Error("Existing format must remain editable");
-    expect(opened.session.manifest.schemaVersion).toBe(4);
+    expect(opened.session.manifest.schemaVersion).toBe(5);
     expect(await sha256Hex((await readTree(root, "data.json"))!)).toBe(await sha256Hex(before!));
     await opened.session.mutate((m) => { m.records[0]!.notes = "edited without upgrading"; });
     const saved = decodeManifest((await readTree(root, "data.json"))!);
@@ -86,7 +86,7 @@ it("copies schema 3 to 4 without losing existing plan/actuals or rewriting origi
   await writeVerified(root, snapshot, encodeManifest(stored));
   const original = await readTree(root, "data.json"), history = await readTree(root, snapshot), target = createMemoryFolder();
   const upgraded = await migrateWorkspaceIntoEmptyFolder(root, target, true);
-  expect(upgraded.schemaVersion).toBe(4);
+  expect(upgraded.schemaVersion).toBe(5);
   expect(upgraded.years).toEqual(stored.years);
   expect(upgraded.records).toEqual(stored.records);
   expect(await sha256Hex((await readTree(root, "data.json"))!)).toBe(await sha256Hex(original!));
@@ -100,7 +100,7 @@ it("imports schema 3 only with consent and resets completion without discarding 
   await expect(importMetadataIntoEmptyFolder(target, encodeManifest(stored))).rejects.toMatchObject({ code: "upgrade-required" });
   expect(await listTree(target)).toEqual([]);
   const imported = await importMetadataIntoEmptyFolder(target, encodeManifest(stored), () => true);
-  expect(imported.schemaVersion).toBe(4);
+  expect(imported.schemaVersion).toBe(5);
   expect(imported.years["2025"]!.plan).toEqual({ ...m.years["2025"]!.plan, completionDigest: null });
 });
 
@@ -122,7 +122,7 @@ it("restores a schema-3 ZIP only with upgrade consent, preserving the plan and v
   await expect(restoreZipIntoEmptyFolder(target, zip, () => false)).rejects.toMatchObject({ code: "upgrade-required" });
   expect(await listTree(target)).toEqual([]);
   const restored = await restoreZipIntoEmptyFolder(target, zip, () => true);
-  expect(restored.session.manifest.schemaVersion).toBe(4);
+  expect(restored.session.manifest.schemaVersion).toBe(5);
   expect(restored.session.manifest.years["2025"]!.plan).toEqual({ ...m.years["2025"]!.plan, completionDigest: null });
   expect(restored.missingAttachments).toEqual([]);
   await expect(restored.session.readAttachment(ATTACHMENT_ID)).resolves.toHaveProperty("bytes");

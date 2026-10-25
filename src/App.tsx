@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { RecordDraft, ReviewStatus } from "./domain/documents";
-import { invalidatesReview, CATEGORY_IDS, categoryLabel, subcategoryLabel, isSubcategoryApplicable, matchesDocumentScope, documentScopeKey, type DocumentScope, type CategoryId } from "./domain/documents";
+import { invalidatesReview, CATEGORY_IDS, categoryLabel, subcategoryLabel, isSubcategoryApplicable, matchesDocumentScope, documentScopeKey, documentScopeLabel, type DocumentScope, type CategoryId } from "./domain/documents";
 import { bangkokCalendarYear, bangkokDateString } from "./domain/years";
 import { isSupportedTaxYear } from "./domain/years";
 import { SCHEMA_VERSION, canStoreSubcategory, type Manifest, type RecordEntry, type Attachment, type PriorManifest } from "./domain/schema";
@@ -23,6 +23,7 @@ import { WorkspaceScreen } from "./ui/WorkspaceScreen";
 import { YearOverview } from "./ui/YearOverview";
 import { DocumentCategories } from "./ui/DocumentCategories";
 import { DocumentList } from "./ui/DocumentList";
+import { AnnualTaxWorksheet } from "./ui/AnnualTaxWorksheet";
 import { TaxWorksheet } from "./ui/TaxWorksheet";
 import type { TaxInputs, TaxPlan, TaxScenario } from "./domain/taxInputs";
 import { DocumentEditor } from "./ui/DocumentEditor";
@@ -39,7 +40,7 @@ import { validateManifest } from "./storage/manifest";
 import { ModalDialog } from "./ui/ModalDialog";
 
 type SaveState = "saved" | "saving" | "save-error" | "conflict";
-type Tab = "worksheet" | "documents" | "tools";
+type Tab = "worksheet" | "legacy" | "documents" | "tools";
 interface Preview {
   attachment: Attachment;
   bytes: Uint8Array;
@@ -72,6 +73,7 @@ export function App() {
   const [taxYear, setTaxYear] = useState<number>(() => bangkokCalendarYear());
   const [extraYears, setExtraYears] = useState<number[]>([]);
   const [documentScope, setDocumentScope] = useState<DocumentScope>(null);
+  const [choosingCategory, setChoosingCategory] = useState(true);
   const [listEpoch, setListEpoch] = useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [saveState, setSaveState] = useState<SaveState>("saved");
@@ -184,6 +186,7 @@ export function App() {
     setPending(result.pendingCandidates);
     const existingRecord = result.session.manifest.records.filter((r) => r.trashedAt === null).sort((a, b) => b.taxYear - a.taxYear)[0];
     setDocumentScope(null);
+    setChoosingCategory(!existingRecord);
     setListEpoch((n) => n + 1);
     setSelectedId(existingRecord?.id ?? null);
     setSaveState("saved");
@@ -366,6 +369,7 @@ export function App() {
     if (saved.taxYear !== taxYear) {
       setTaxYear(saved.taxYear);
       setDocumentScope(null);
+      setChoosingCategory(false);
       setListEpoch((n) => n + 1);
     } else if (!matchesDocumentScope(saved, documentScope)) {
       setDocumentScope({ category: saved.category as CategoryId, subcategory: saved.subcategory });
@@ -422,13 +426,14 @@ export function App() {
   };
 
   const selectDocumentScope = (next: DocumentScope) => {
-    if (documentScopeKey(next) === documentScopeKey(documentScope)) { showDocumentList(); return; }
+    if (documentScopeKey(next) === documentScopeKey(documentScope)) { setChoosingCategory(false); showDocumentList(); return; }
     if (selected && !matchesDocumentScope(selected, next)) {
       if (!confirmLeave()) return;
       setSelectedId(null);
       setPreview(null);
     }
     setDocumentScope(next);
+    setChoosingCategory(false);
     showDocumentList();
   };
 
@@ -444,6 +449,7 @@ export function App() {
     setSelectedId(null);
     setPreview(null);
     setDocumentScope(null);
+    setChoosingCategory(true);
     setListEpoch((n) => n + 1);
     setTaxYear(year);
   };
@@ -459,6 +465,7 @@ export function App() {
     setSelectedId(null);
     setPreview(null);
     setDocumentScope(null);
+    setChoosingCategory(true);
     setListEpoch((n) => n + 1);
     setTaxYear(year);
   };
@@ -678,7 +685,7 @@ export function App() {
           {session.storageSchemaVersion < SCHEMA_VERSION && (
             <section className="notice" aria-label="การแก้ไขข้อมูลรูปแบบเดิม">
               <p>เปิดข้อมูลเดิมแล้ว แก้ไขและบันทึกในรูปแบบเดิม (schema {session.storageSchemaVersion}) ได้โดยไม่ต้องสร้างสำเนา
-                {session.storageSchemaVersion === 1 ? " · ประเภทย่อยและใบคำนวณภาษีต้องใช้สำเนารูปแบบใหม่" : session.storageSchemaVersion === 2 ? " · แผนและประเภทกองทุนใหม่ต้องใช้สำเนารูปแบบใหม่" : " · ประเภทกองทุนใหม่ต้องใช้สำเนารูปแบบใหม่"}
+                {session.storageSchemaVersion === 1 ? " · ประเภทย่อยและใบคำนวณภาษีต้องใช้สำเนารูปแบบใหม่" : session.storageSchemaVersion === 2 ? " · แผนและประเภทกองทุนใหม่ต้องใช้สำเนารูปแบบใหม่" : " · คุณสมบัติคำนวณและประเภทกองทุนใหม่บางรายการต้องใช้สำเนารูปแบบใหม่"}
               </p>
               <button type="button" disabled={busy || dirty || saveState !== "saved"} onClick={requestFeatureUpgrade}>สร้างสำเนาสำหรับคุณสมบัติใหม่</button>
             </section>
@@ -702,12 +709,19 @@ export function App() {
             <button type="button" disabled={busy} onClick={() => setIsAddYearOpen(true)}>เพิ่มปีภาษี</button>
           </div>
           <nav className="tabs" aria-label="เมนูหลัก">
-            <button type="button" disabled={busy || session.storageSchemaVersion === 1} aria-pressed={tab === "worksheet"} onClick={() => handleTabChange("worksheet")}>คำนวณและวางแผน</button>
+            <button type="button" disabled={busy || session.storageSchemaVersion === 1} aria-pressed={tab === "worksheet"} onClick={() => handleTabChange("worksheet")}>คำนวณภาษี</button>
             <button type="button" disabled={busy} aria-pressed={tab === "documents"} onClick={() => handleTabChange("documents")}>เอกสาร</button>
             <button type="button" disabled={busy} aria-pressed={tab === "tools"} onClick={() => handleTabChange("tools")}>เครื่องมือ</button>
+            {taxYear === 2026 && <button type="button" disabled={busy || session.storageSchemaVersion === 1} aria-pressed={tab === "legacy"} onClick={() => handleTabChange("legacy")}>แผนสุขภาพเดิม</button>}
           </nav>
-          {tab === "worksheet" && (
-            <TaxWorksheet
+          {(tab === "worksheet" || tab === "legacy") && (taxYear === 2026 && tab !== "legacy" ? <AnnualTaxWorksheet
+            key={`${manifest.workspaceId}-${taxYear}`} manifest={manifest} taxYear={taxYear}
+            bundle={pinned?.bundle ?? null} ruleDigest={pinned?.digest ?? null}
+            trustedRules={pinned !== null && isTrustedMatch(catalog, pinned.bundle, pinned.digest)}
+            disabled={session.readOnly || busy} supportsAnnual={session.storageSchemaVersion >= 5}
+            onUpgrade={requestFeatureUpgrade} onUnsavedChange={handleUnsaved}
+            onSave={(taxInputs) => saveTaxInputs(taxYear, taxInputs)}
+          /> : <TaxWorksheet
               key={`${manifest.workspaceId}-${taxYear}`}
               manifest={manifest}
               taxYear={taxYear}
@@ -724,7 +738,18 @@ export function App() {
           )}
           {tab === "documents" && (
             <>
-              <DocumentCategories records={yearRecords} taxYear={taxYear} scope={documentScope} onSelect={selectDocumentScope} disabled={busy} />
+              <div hidden={!choosingCategory}>
+                <DocumentCategories records={yearRecords} taxYear={taxYear} scope={documentScope} onSelect={selectDocumentScope} disabled={busy} />
+                <button type="button" disabled={busy} onClick={() => { setChoosingCategory(false); showDocumentList(); }}>กลับรายการเดิม</button>
+              </div>
+              <div hidden={choosingCategory}>
+                <div className="category-navigation">
+                  <p><strong>{documentScopeLabel(documentScope)}</strong></p>
+                  <button type="button" disabled={busy} onClick={() => {
+                    setChoosingCategory(true);
+                    requestAnimationFrame(() => document.getElementById("categories-title")?.focus());
+                  }}>เปลี่ยนหมวด</button>
+                </div>
               <details className="task-details">
                 <summary>สรุปเอกสารและความคืบหน้าปี {taxYear}</summary>
                 <YearOverview manifest={manifest} taxYear={taxYear} pinned={pinned?.bundle ?? null} />
@@ -784,6 +809,7 @@ export function App() {
                     )}
                   </div>
                 </div>
+              </div>
             </>
           )}
           {tab === "tools" && (

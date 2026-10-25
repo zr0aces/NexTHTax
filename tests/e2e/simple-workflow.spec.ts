@@ -12,8 +12,11 @@ test.beforeEach(async ({ page }, testInfo) => {
   await page.getByLabel(/ชื่อผู้เสียภาษี/).fill("ผู้ทดสอบ");
   await page.getByRole("button", { name: "สร้างข้อมูลในโฟลเดอร์นี้" }).click();
   await expect(page.getByRole("heading", { name: /เลือกหมวดเอกสาร/ })).toBeVisible();
+  await page.getByRole("button", { name: "เพิ่มปีภาษี", exact: true }).click();
+  await page.getByRole("dialog").getByRole("spinbutton").fill("2025");
+  await page.getByRole("dialog").getByRole("button", { name: "เพิ่มปี", exact: true }).click();
   // Calculation is a secondary task, reached explicitly from the document-first home.
-  await page.getByRole("button", { name: "คำนวณและวางแผน", exact: true }).click();
+  await page.getByRole("button", { name: "คำนวณภาษี", exact: true }).click();
 });
 
 test("shows one task at a time with shared year selection and accessible tools", async ({ page }) => {
@@ -24,6 +27,7 @@ test("shows one task at a time with shared year selection and accessible tools",
   await expect(page.getByText(/ยังไม่แสดงยอดชำระหรือขอคืน/)).toBeVisible();
 
   await nav.getByRole("button", { name: "เอกสาร", exact: true }).click();
+  await page.getByRole("button", { name: "แสดงทุกหมวด", exact: true }).click();
   await expect(page.getByRole("heading", { name: /รายการเอกสาร/ })).toBeVisible();
   await expect(page.getByRole("heading", { name: /คำนวณและวางแผนภาษี/ })).toHaveCount(0);
   await expect(page.getByRole("heading", { name: /สรุปปีภาษี/ })).not.toBeVisible();
@@ -42,14 +46,14 @@ test("protects worksheet drafts on navigation and switches years without leaking
   await page.getByRole("button", { name: "เอกสาร", exact: true }).click();
   await expect(page.getByLabel(/เงินเดือนรวมทั้งปี/)).toHaveValue("600000");
 
-  const previousYear = String(Number(await page.getByRole("combobox", { name: "ปีภาษี", exact: true }).inputValue()) - 1);
+  const previousYear = "2026";
   page.once("dialog", (dialog) => dialog.dismiss());
   await page.getByRole("combobox", { name: "ปีภาษี", exact: true }).selectOption(previousYear);
   await expect(page.getByLabel(/เงินเดือนรวมทั้งปี/)).toHaveValue("600000");
   page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("combobox", { name: "ปีภาษี", exact: true }).selectOption(previousYear);
-  await expect(page.getByRole("heading", { name: `คำนวณและวางแผนภาษี ปี ${previousYear}` })).toBeVisible();
-  await expect(page.getByLabel(/เงินเดือนรวมทั้งปี/)).toHaveValue("");
+  await expect(page.getByRole("heading", { name: "คำนวณภาษี ปี 2569" })).toBeVisible();
+  await expect(page.getByLabel("เงินได้ทั้งปี (บาท)")).toHaveCount(0);
 });
 
 test("saves and reopens tax inputs and fits a narrow screen", async ({ page }) => {
@@ -58,12 +62,12 @@ test("saves and reopens tax inputs and fits a narrow screen", async ({ page }) =
   await page.getByRole("button", { name: "บันทึกข้อมูลภาษี", exact: true }).click();
   await expect(page.getByText("บันทึกข้อมูลภาษีแล้ว ต้องยืนยันใหม่ก่อนใช้ผลคำนวณ")).toBeVisible();
   await page.getByRole("button", { name: "เครื่องมือ" }).click();
-  await page.getByRole("button", { name: "คำนวณและวางแผน", exact: true }).click();
+  await page.getByRole("button", { name: "คำนวณภาษี", exact: true }).click();
   await expect(page.getByLabel(/เงินเดือนรวมทั้งปี/)).toHaveValue("600,000.00");
   await page.reload();
   await page.getByRole("button", { name: "เปิดโฟลเดอร์ข้อมูลที่มีอยู่" }).click();
-  await expect(page.getByRole("heading", { name: /เลือกหมวดเอกสาร/ })).toBeVisible();
-  await page.getByRole("button", { name: "คำนวณและวางแผน", exact: true }).click();
+  await expect(page.getByRole("heading", { name: /เลือกหมวดเอกสาร ปี/ })).toBeVisible();
+  await page.getByRole("button", { name: "คำนวณภาษี", exact: true }).click();
   await expect(page.getByLabel(/เงินเดือนรวมทั้งปี/)).toHaveValue("600,000.00");
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.screenshot({ path: "test-results/simple-workflow-mobile.png", fullPage: true });
@@ -81,14 +85,15 @@ test("saves one plan, protects its draft, and keeps years separate on reopen", a
   await expect(page.getByText("บันทึกแผนแล้ว", { exact: true })).toBeVisible();
   await expect(page.getByText(/ตามแผนที่บันทึก: ยังประเมินไม่ได้/)).toBeVisible();
   const year = await page.getByRole("combobox", { name: "ปีภาษี", exact: true }).inputValue();
-  await page.getByRole("combobox", { name: "ปีภาษี", exact: true }).selectOption(String(Number(year) - 1));
-  await expect(page.getByLabel(/เบี้ยสุขภาพที่จะจ่ายเพิ่มจากข้อมูลภาษี/)).toHaveValue("");
+  await page.getByRole("combobox", { name: "ปีภาษี", exact: true }).selectOption("2026");
+  await expect(page.getByRole("heading", { name: "คำนวณภาษี ปี 2569" })).toBeVisible();
+  await expect(page.getByLabel("เงินได้ทั้งปี (บาท)")).toHaveCount(0);
   await page.getByRole("combobox", { name: "ปีภาษี", exact: true }).selectOption(year);
   await expect(page.getByLabel(/เบี้ยสุขภาพที่จะจ่ายเพิ่มจากข้อมูลภาษี/)).toHaveValue("10,000.00");
   await page.reload();
   await page.getByRole("button", { name: "เปิดโฟลเดอร์ข้อมูลที่มีอยู่" }).click();
-  await expect(page.getByRole("heading", { name: /เลือกหมวดเอกสาร/ })).toBeVisible();
-  await page.getByRole("button", { name: "คำนวณและวางแผน", exact: true }).click();
+  await expect(page.getByRole("heading", { name: /เลือกหมวดเอกสาร ปี/ })).toBeVisible();
+  await page.getByRole("button", { name: "คำนวณภาษี", exact: true }).click();
   await expect(page.getByLabel(/เบี้ยสุขภาพที่จะจ่ายเพิ่มจากข้อมูลภาษี/)).toHaveValue("10,000.00");
   await page.getByLabel(/เบี้ยสุขภาพที่จะจ่ายเพิ่มจากข้อมูลภาษี/).fill("9000");
   await page.getByRole("button", { name: "บันทึกแผน", exact: true }).click();
@@ -106,6 +111,7 @@ test("confirms a paid action with verified evidence, then invalidates it when ev
   await page.getByRole("button", { name: "บันทึกข้อมูลภาษี", exact: true }).click();
   await expect(page.getByText("บันทึกข้อมูลภาษีแล้ว ต้องยืนยันใหม่ก่อนใช้ผลคำนวณ")).toBeVisible();
   await page.getByRole("button", { name: "เอกสาร", exact: true }).click();
+  await page.getByRole("button", { name: "แสดงทุกหมวด", exact: true }).click();
   await page.getByRole("button", { name: "+ เพิ่มรายการ", exact: true }).click();
   const editor = page.getByRole("form", { name: "แก้ไขรายการ" });
   await editor.getByLabel(/^หมวด/).selectOption("deduction_insurance");
@@ -118,7 +124,7 @@ test("confirms a paid action with verified evidence, then invalidates it when ev
   await expect(editor.getByText("เพิ่มไฟล์แนบแล้ว", { exact: true })).toBeVisible();
   await editor.getByRole("combobox", { name: /สถานะการตรวจทาน/ }).selectOption("reviewed");
   await expect(editor.getByRole("status")).toHaveText("บันทึกแล้ว");
-  await page.getByRole("button", { name: "คำนวณและวางแผน", exact: true }).click();
+  await page.getByRole("button", { name: "คำนวณภาษี", exact: true }).click();
   await page.getByLabel(/เบี้ยสุขภาพที่จะจ่ายเพิ่มจากข้อมูลภาษี/).fill("10000");
   await page.getByLabel(/งบประมาณที่จ่ายเพิ่มได้/).fill("10000");
   await page.getByRole("combobox", { name: "สิทธิของรายการ", exact: true }).selectOption("yes");
@@ -134,13 +140,13 @@ test("confirms a paid action with verified evidence, then invalidates it when ev
   await expect(page.getByText(/จากรายการที่ทำครบแล้ว: ยังประเมินไม่ได้/)).toBeVisible();
   await page.reload();
   await page.getByRole("button", { name: "เปิดโฟลเดอร์ข้อมูลที่มีอยู่" }).click();
-  await expect(page.getByRole("heading", { name: /เลือกหมวดเอกสาร/ })).toBeVisible();
-  await page.getByRole("button", { name: "คำนวณและวางแผน", exact: true }).click();
+  await expect(page.getByRole("heading", { name: /รายการเอกสาร/ })).toBeVisible();
+  await page.getByRole("button", { name: "คำนวณภาษี", exact: true }).click();
   await expect(page.getByText(/สถานะแผน: ทำรายการครบแล้ว · ความคืบหน้า 1\/1/)).toBeVisible();
   await page.getByRole("button", { name: "เอกสาร", exact: true }).click();
   await page.getByRole("button", { name: /หลักฐานตามแผน/ }).click();
   await editor.getByLabel(/ยอดตามหลักฐาน/).fill("7000");
   await expect(editor.getByRole("status")).toHaveText("บันทึกแล้ว");
-  await page.getByRole("button", { name: "คำนวณและวางแผน", exact: true }).click();
+  await page.getByRole("button", { name: "คำนวณภาษี", exact: true }).click();
   await expect(page.getByText(/สถานะแผน: ต้องตรวจสอบใหม่ · ความคืบหน้า 0\/1/)).toBeVisible();
 });

@@ -22,6 +22,7 @@ async function createWorkspaceWithRecord(page: Page, title: string, category: st
   await page.getByLabel(/ชื่อผู้เสียภาษี/).fill("ผู้ทดสอบ");
   await page.getByRole("button", { name: "สร้างข้อมูลในโฟลเดอร์นี้" }).click();
   await page.getByRole("button", { name: "เอกสาร", exact: true }).click();
+  await page.getByRole("button", { name: "แสดงทุกหมวด", exact: true }).click();
   await page.getByRole("button", { name: "+ เพิ่มรายการ", exact: true }).click();
   const editor = page.getByRole("form", { name: "แก้ไขรายการ" });
   await editor.getByLabel(/^หมวด/).selectOption(category);

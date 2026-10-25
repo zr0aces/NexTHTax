@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { CATEGORY_IDS } from "./documents";
+import { CATEGORY_IDS, SUBCATEGORY_IDS, isSubcategoryApplicable } from "./documents";
 import { sha256Schema } from "./schema";
 import { isSupportedTaxYear, isValidIsoDate } from "./years";
 
@@ -209,13 +209,62 @@ function isOfficialHttps(raw: string): boolean {
 }
 
 export type RuleBundleV2 = z.infer<typeof ruleBundleV2Schema>;
-export type AnyRuleBundle = RuleBundle | RuleBundleV2;
+/** Annual tables are separate from the frozen salary-slice contract. No shipped 2026 table is reviewed yet. */
+export const annualRuleSchema = z.strictObject({
+  ...ruleBundleV2Schema.shape,
+  schemaVersion: z.literal(3),
+  taxYear: z.literal(2026),
+  annual: z.strictObject({
+    rounding: z.literal("floor-tax-baht-before-withholding"),
+    settlementSourceIds: z.array(z.string().max(32)).min(1).max(10),
+    lifeHealthCapSatang: satangInt,
+    retirementCapSatang: satangInt,
+    esgCapSatang: satangInt,
+    specialDonationPercent: percentInt,
+    generalDonationPercent: percentInt,
+    deductions: z.array(z.strictObject({
+      category: z.enum(["deduction_retirement", "deduction_insurance", "deduction_social_security", "deduction_mortgage_interest", "deduction_other", "donation_general", "donation_conditional", "donation_edonation"]),
+      subcategory: z.enum(SUBCATEGORY_IDS).nullable(),
+      status: coverageStatusSchema,
+      reason: z.string().max(500),
+      sourceIds: z.array(z.string().max(32)).min(1).max(10),
+      capSatang: satangInt,
+      percentOfIncome: percentInt.nullable(),
+      multiplier: z.union([z.literal(1), z.literal(2)]),
+      group: z.enum(["none", "life_health", "retirement", "esg", "special_donation", "general_donation"]),
+      priority: z.number().int().min(0).max(100),
+    })).max(40),
+  }),
+}).superRefine((b, ctx) => {
+  // Reuse all frozen table/source/trust validation; no alternate path around it.
+  const base = { ...b, schemaVersion: 2 };
+  const { annual: _, ...v2 } = base;
+  const check = ruleBundleV2Schema.safeParse(v2);
+  if (!check.success) for (const issue of check.error.issues) ctx.addIssue({ code: "custom", path: [...issue.path], message: issue.message });
+  const sources = new Set(b.sources.map((s) => s.id));
+  const keys = new Set<string>();
+  for (const r of b.annual.deductions) {
+    const key = `${r.category}/${r.subcategory}`;
+    if (keys.has(key) || !isSubcategoryApplicable(r.category, r.subcategory)) ctx.addIssue({ code: "custom", message: "กฎประเภทซ้ำหรือไม่ตรงหมวด" });
+    keys.add(key);
+    if (r.category.startsWith("donation_") !== ["special_donation", "general_donation"].includes(r.group)) ctx.addIssue({ code: "custom", message: "กฎบริจาคต้องระบุขั้นและวงเงินบริจาค" });
+    for (const id of r.sourceIds) if (!sources.has(id)) ctx.addIssue({ code: "custom", message: "กฎลดหย่อนอ้างแหล่งที่ไม่มี" });
+  }
+  for (const id of b.annual.settlementSourceIds) if (!sources.has(id)) ctx.addIssue({ code: "custom", message: "กฎชำระภาษีอ้างแหล่งที่ไม่มี" });
+  if (b.officialReviewed && b.calculation.components.withholding_settlement?.status !== "verified") ctx.addIssue({ code: "custom", message: "ต้องตรวจการชำระภาษีก่อนเผยแพร่ยอดสุดท้าย" });
+});
+export type AnnualRuleBundle = z.infer<typeof annualRuleSchema>;
+export type AnyRuleBundle = RuleBundle | RuleBundleV2 | AnnualRuleBundle;
 
 /** Version dispatch by exact integer. Unknown versions return null and never fall back to another schema. */
 export function parseRuleBundle(json: unknown): AnyRuleBundle | null {
   const version = typeof json === "object" && json !== null && "schemaVersion" in json ? (json as { schemaVersion: unknown }).schemaVersion : null;
   if (version === 1) {
     const r = ruleBundleSchema.safeParse(json);
+    return r.success ? r.data : null;
+  }
+  if (version === 3) {
+    const r = annualRuleSchema.safeParse(json);
     return r.success ? r.data : null;
   }
   if (version === 2) {
@@ -228,7 +277,7 @@ export function parseRuleBundle(json: unknown): AnyRuleBundle | null {
 /** Empty list means numeric output may be trusted for this bundle. Each entry explains one blocker for the UI. */
 export function numericBlockers(bundle: AnyRuleBundle | null): string[] {
   if (!bundle) return ["ไม่มีกฎที่ปักไว้สำหรับปีนี้"];
-  if (bundle.schemaVersion !== 2) return ["กฎรุ่นนี้เป็นข้อมูลขอบเขตเท่านั้น ไม่มีตารางตัวเลข"];
+  if (bundle.schemaVersion !== 2 && bundle.schemaVersion !== 3) return ["กฎรุ่นนี้เป็นข้อมูลขอบเขตเท่านั้น ไม่มีตารางตัวเลข"];
   const blockers: string[] = [];
   if (!bundle.officialReviewed) blockers.push("กฎยังไม่ผ่านการตรวจกับแหล่งทางการ");
   if (!bundle.calculation.roundingVerified) blockers.push("ยังไม่มีกฎการปัดเศษที่ยืนยันจากแหล่งทางการ");

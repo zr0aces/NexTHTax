@@ -1,4 +1,4 @@
-import { manifestSchema, legacyManifestSchema, v2ManifestSchema, v3ManifestSchema, detectSchemaVersion, SCHEMA_VERSION, MAX_METADATA_BYTES, type Manifest, type StoredManifest } from "../domain/schema";
+import { manifestSchema, legacyManifestSchema, v2ManifestSchema, v3ManifestSchema, v4ManifestSchema, detectSchemaVersion, SCHEMA_VERSION, MAX_METADATA_BYTES, type Manifest, type StoredManifest } from "../domain/schema";
 import { StorageError } from "./fs";
 
 export function encodeManifest(m: StoredManifest): Uint8Array {
@@ -20,7 +20,7 @@ export function decodeManifest(bytes: Uint8Array): StoredManifest {
   if (version !== null && version > SCHEMA_VERSION) {
     throw new StorageError("newer-schema", `ข้อมูลสร้างด้วยเวอร์ชันใหม่กว่า (schema ${version}) กรุณาใช้แอปรุ่นที่รองรับ`);
   }
-  const result = (version === 1 ? legacyManifestSchema : version === 2 ? v2ManifestSchema : version === 3 ? v3ManifestSchema : manifestSchema).safeParse(parsed);
+  const result = (version === 1 ? legacyManifestSchema : version === 2 ? v2ManifestSchema : version === 3 ? v3ManifestSchema : version === 4 ? v4ManifestSchema : manifestSchema).safeParse(parsed);
   if (!result.success) {
     throw new StorageError("invalid", `data.json ไม่ผ่านการตรวจสอบ: ${result.error.issues[0]?.message ?? "ไม่ทราบสาเหตุ"}`);
   }
@@ -54,9 +54,9 @@ export function editableManifest(stored: StoredManifest): Manifest {
 /** Write back the opened format. Unsupported new facts are rejected, never silently dropped. */
 export function manifestForStorage(current: Manifest, version: StoredManifest["schemaVersion"]): StoredManifest {
   if (version === SCHEMA_VERSION) return current;
-  if (version === 3) {
-    const stored = v3ManifestSchema.safeParse({ ...current, schemaVersion: 3 });
-    if (!stored.success) throw new StorageError("upgrade-required", "ประเภทกองทุนนี้ต้องใช้รูปแบบใหม่ กรุณาสร้างสำเนาสำหรับคุณสมบัติใหม่ก่อน");
+  if (version === 3 || version === 4) {
+    const stored = (version === 3 ? v3ManifestSchema : v4ManifestSchema).safeParse({ ...current, schemaVersion: version });
+    if (!stored.success) throw new StorageError("upgrade-required", "ข้อมูลคำนวณหรือประเภทกองทุนนี้ต้องใช้รูปแบบใหม่ กรุณาสร้างสำเนาสำหรับคุณสมบัติใหม่ก่อน");
     return stored.data;
   }
   const years: Record<string, unknown> = {};
@@ -73,6 +73,6 @@ export function manifestForStorage(current: Manifest, version: StoredManifest["s
     return record;
   });
   const result = (version === 2 ? v2ManifestSchema : legacyManifestSchema).safeParse({ ...current, schemaVersion: version, years, records });
-  if (!result.success) throw new StorageError("upgrade-required", "ประเภทกองทุนนี้ต้องใช้รูปแบบใหม่ กรุณาสร้างสำเนาสำหรับคุณสมบัติใหม่ก่อน");
+  if (!result.success) throw new StorageError("upgrade-required", "ข้อมูลคำนวณหรือประเภทกองทุนนี้ต้องใช้รูปแบบใหม่ กรุณาสร้างสำเนาสำหรับคุณสมบัติใหม่ก่อน");
   return result.data;
 }

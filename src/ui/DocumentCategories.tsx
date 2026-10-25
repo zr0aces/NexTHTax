@@ -46,7 +46,7 @@ export function DocumentCategories({ records, taxYear, scope, onSelect, disabled
   </article>;
   return <section className="category-browser" aria-labelledby="categories-title">
     <div className="category-browser-header">
-      <div><h2 id="categories-title">เลือกหมวดเอกสาร ปี {taxYear}</h2><p>เลือกหมวดเพื่อดูรายการ แล้วเพิ่มเอกสารหรือบันทึกรายการที่รอรับได้ทันที</p></div>
+      <div><h2 id="categories-title" tabIndex={-1}>เลือกหมวดเอกสาร ปี {taxYear}</h2><p>เลือกหมวดเพื่อดูรายการ แล้วเพิ่มเอกสารหรือบันทึกรายการที่รอรับได้ทันที</p></div>
       <button type="button" disabled={disabled} aria-pressed={scope === null} aria-controls="document-list" onClick={() => onSelect(null)}>แสดงทุกหมวด</button>
     </div>
     <p className="muted">ยอดตามหลักฐานที่บันทึก ไม่ใช่ยอดลดหย่อนที่รับรองแล้ว สิทธิขึ้นกับปีและเงื่อนไข ยอดและงานค้างไม่นับรายการในถังขยะหรือรายการที่เลือกไม่รวมในสรุป</p>

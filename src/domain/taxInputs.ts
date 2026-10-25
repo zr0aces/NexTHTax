@@ -12,7 +12,7 @@ const answer = z.enum(["yes", "no", "unknown"]);
 const text = z.string().max(200).regex(/^[^\u0000-\u001f\u007f]*$/);
 const sourceIds = z.array(uuid).max(200);
 
-export const taxInputsSchema = z.strictObject({
+export const v4TaxInputsSchema = z.strictObject({
   incomeItems: z.array(z.strictObject({
     id: uuid,
     sourceRecordIds: sourceIds,
@@ -47,6 +47,12 @@ export const taxInputsSchema = z.strictObject({
   confirmedWorksheetDigest: digest,
 });
 
+export const taxInputsSchema = v4TaxInputsSchema.extend({
+  deductions: z.array(v4TaxInputsSchema.shape.deductions.element.extend({
+    category: z.enum(["deduction_retirement", "deduction_insurance", "deduction_social_security", "deduction_mortgage_interest", "deduction_other", "donation_general", "donation_conditional", "donation_edonation"]),
+  })).max(2000),
+});
+
 const scenarioRoot = z.strictObject({
   id: uuid,
   label: text.min(1),
@@ -66,8 +72,8 @@ function checkContributions(s: { contributions: { subcategory: string }[] }, ctx
   if (new Set(ids).size !== ids.length) ctx.addIssue({ code: "custom", message: "ประเภทในแผนซ้ำ" });
 }
 export const taxScenarioSchema = scenarioRoot.superRefine(checkContributions);
-export const legacyTaxInputsSchema = taxInputsSchema.extend({
-  deductions: z.array(taxInputsSchema.shape.deductions.element.extend({
+export const legacyTaxInputsSchema = v4TaxInputsSchema.extend({
+  deductions: z.array(v4TaxInputsSchema.shape.deductions.element.extend({
     subcategory: z.enum(LEGACY_SUBCATEGORY_IDS).nullable(),
   })).max(2000),
 });

@@ -9,7 +9,7 @@ import { planFixture } from "../fixtures/plan";
 const WS = "11111111-2222-4333-8444-555555555555";
 const manifestWith = (taxInputs: TaxInputs | null): Manifest =>
   manifestSchema.parse({
-    schemaVersion: 4, workspaceId: WS, revision: 1, createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z",
+    schemaVersion: 5, workspaceId: WS, revision: 1, createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z",
     taxpayer: { displayName: "ผู้ทดสอบ" },
     years: { "2025": { taxYear: 2025, rulesVersion: null, rulesDigest: null, eligibility: {}, taxInputs, scenarios: [] } },
     records: [], attachments: {},

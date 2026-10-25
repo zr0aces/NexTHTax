@@ -69,7 +69,7 @@ describe("workspace creation and open", () => {
     const root = createMemoryFolder();
     await createWorkspace(root, "ผู้ทดสอบ");
     const before = await readTree(root, "data.json");
-    const newer = new TextEncoder().encode(JSON.stringify({ schemaVersion: 5, anything: true }));
+    const newer = new TextEncoder().encode(JSON.stringify({ schemaVersion: 6, anything: true }));
     const handle = await root.getFileHandle("data.json", { create: true });
     const w = await handle.createWritable();
     await w.write(newer);

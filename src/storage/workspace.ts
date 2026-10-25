@@ -345,6 +345,20 @@ export class WorkspaceSession {
       const [removed] = next.records.splice(idx, 1);
       if (!removed) throw new StorageError("invalid", "ไม่พบรายการที่จะลบ");
       for (const year of Object.values(next.years)) {
+        const inputs = year.taxInputs;
+        if (inputs && [...inputs.incomeItems, ...inputs.deductions].some((i) => i.sourceRecordIds.includes(recordId))) {
+          for (const item of [...inputs.incomeItems, ...inputs.deductions]) {
+            if (!item.sourceRecordIds.includes(recordId)) continue;
+            item.sourceRecordIds = item.sourceRecordIds.filter((id) => id !== recordId);
+            if ("eligibility" in item) item.eligibility = "unknown";
+          }
+          inputs.confirmedSourcesDigest = null;
+          inputs.confirmedWorksheetDigest = null;
+          inputs.incomeComplete = "unknown";
+          inputs.withholdingComplete = "unknown";
+          inputs.deductionsComplete = "unknown";
+          inputs.finalTaxGroupsComplete = "unknown";
+        }
         if (year.plan?.evidenceRecordId === recordId) {
           year.plan.evidenceRecordId = null;
           year.plan.completionDigest = null;

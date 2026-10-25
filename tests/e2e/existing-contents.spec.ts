@@ -40,7 +40,7 @@ test("opens and edits a saved v2 worksheet instead of a newer empty year, retain
     const writable = await file.createWritable(); await writable.write(JSON.stringify(data)); await writable.close();
   }, year);
   await page.getByRole("button", { name: "เปิดโฟลเดอร์ข้อมูลที่มีอยู่" }).click();
-  await page.getByRole("button", { name: "คำนวณและวางแผน", exact: true }).click();
+  await page.getByRole("button", { name: "คำนวณภาษี", exact: true }).click();
   await expect(page.getByRole("combobox", { name: "ปีภาษี", exact: true })).toHaveValue("2025");
   await expect(page.getByLabel(/เงินเดือนรวมทั้งปี/)).toHaveValue("600,000.00");
   await expect(page.getByRole("button", { name: "บันทึกแผน", exact: true })).toBeDisabled();
@@ -56,7 +56,7 @@ test("opens and edits a saved v2 worksheet instead of a newer empty year, retain
   expect(saved.years["2025"].scenarios).toEqual(year.scenarios);
   await page.reload();
   await page.getByRole("button", { name: "เปิดโฟลเดอร์ข้อมูลที่มีอยู่" }).click();
-  await page.getByRole("button", { name: "คำนวณและวางแผน", exact: true }).click();
+  await page.getByRole("button", { name: "คำนวณภาษี", exact: true }).click();
   await expect(page.getByLabel(/เงินเดือนรวมทั้งปี/)).toHaveValue("700,000.00");
 });
 
@@ -65,7 +65,7 @@ test("offers the preserved-original copy upgrade only when the user requests new
   await existingFolder(page, 1, source);
   await page.goto("/");
   await page.getByRole("button", { name: "เปิดโฟลเดอร์ข้อมูลที่มีอยู่" }).click();
-  await expect(page.getByRole("heading", { name: /รายการเอกสาร/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /เลือกหมวดเอกสาร ปี/ })).toBeVisible();
   const before = await page.evaluate(async (name) => {
     const dir = await (await navigator.storage.getDirectory()).getDirectoryHandle(name);
     return (await (await dir.getFileHandle("data.json")).getFile()).text();
@@ -78,15 +78,15 @@ test("offers the preserved-original copy upgrade only when the user requests new
   page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "สร้างสำเนารุ่นใหม่ในโฟลเดอร์ว่าง", exact: true }).click();
   await expect(page.getByRole("heading", { name: /เลือกหมวดเอกสาร/ })).toBeVisible();
-  await page.getByRole("button", { name: "คำนวณและวางแผน", exact: true }).click();
+  await page.getByRole("button", { name: "คำนวณภาษี", exact: true }).click();
   const contents = await page.evaluate(async ({ source, target }) => {
     const root = await navigator.storage.getDirectory();
     const read = async (name: string) => (await (await (await root.getDirectoryHandle(name)).getFileHandle("data.json")).getFile()).text();
     return { source: await read(source), target: await read(target) };
   }, { source, target });
   expect(contents.source).toBe(before);
-  expect(JSON.parse(contents.target).schemaVersion).toBe(4);
-  await expect(page.getByRole("button", { name: "บันทึกแผน", exact: true })).toBeEnabled();
+  expect(JSON.parse(contents.target).schemaVersion).toBe(5);
+  await expect(page.getByRole("heading", { name: /คำนวณภาษี ปี 2569/ })).toBeVisible();
 });
 
 for (const version of [1, 2] as const) {
@@ -99,6 +99,7 @@ for (const version of [1, 2] as const) {
     await expect(page.getByText("aaa", { exact: true })).toBeVisible();
     await expect(page.getByRole("region", { name: "การแก้ไขข้อมูลรูปแบบเดิม" })).toContainText(`schema ${version}`);
     await page.getByRole("button", { name: "เอกสาร", exact: true }).click();
+    await page.getByRole("button", { name: "แสดงทุกหมวด", exact: true }).click();
     await page.getByRole("button", { name: "+ เพิ่มรายการ", exact: true }).click();
     const editor = page.getByRole("form", { name: "แก้ไขรายการ" });
     await editor.getByLabel(/ชื่อรายการ/).fill("existing content");

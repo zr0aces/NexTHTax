@@ -7,7 +7,14 @@ async function readData(page: Page) {
     return JSON.parse(await (await (await folder.getFileHandle("data.json")).getFile()).text());
   });
 }
-const typeButton = (page: Page, label: string) => page.getByRole("button", { name: `เลือกประเภท กองทุนและเงินออมเพื่อเกษียณ / ${label}`, exact: true });
+const typeButton = (page: Page, label: string) => page.getByRole("button", { name: `เลือกประเภท กองทุนและเงินออมเพื่อเกษียณ / ${label}`, exact: true, includeHidden: true });
+
+async function chooseType(page: Page, label: string) {
+  await page.getByRole("main").waitFor({ state: "visible" });
+  const change = page.getByRole("button", { name: "เปลี่ยนหมวด", exact: true });
+  if (await change.isVisible()) await change.click();
+  await typeButton(page, label).click();
+}
 
 test.beforeEach(async ({ page }, testInfo) => {
   await page.addInitScript((name) => {
@@ -41,7 +48,7 @@ test("opens on all categories including empty types, and browsing by keyboard do
 });
 
 test("adds a ready-classified waiting document, preserves raw draft guards, then reloads its saved contents", async ({ page }) => {
-  await typeButton(page, "SSF").click();
+  await chooseType(page, "SSF");
   await page.getByRole("button", { name: "เพิ่มเอกสารในหมวดนี้", exact: true }).click();
   const editor = page.getByRole("form", { name: "แก้ไขรายการ" });
   await expect(editor.getByLabel(/ประเภทเอกสารย่อย/)).toHaveValue("fund_ssf");
@@ -56,32 +63,34 @@ test("adds a ready-classified waiting document, preserves raw draft guards, then
   await expect(typeButton(page, "SSF")).toContainText("ยอดที่ระบุ 12,345.67 บาท");
   await editor.getByLabel(/ยอดตามหลักฐาน/).fill("12.345");
   page.once("dialog", (dialog) => dialog.dismiss());
-  await typeButton(page, "RMF").click();
+  await chooseType(page, "RMF");
   await expect(typeButton(page, "SSF")).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("button", { name: "กลับรายการเดิม", exact: true }).click();
   await expect(editor.getByLabel(/ยอดตามหลักฐาน/)).toHaveValue("12.345");
   page.once("dialog", (dialog) => dialog.accept());
-  await typeButton(page, "RMF").click();
+  await chooseType(page, "RMF");
   await expect(editor).toHaveCount(0);
   expect((await readData(page)).records[0].evidenceAmountSatang).toBe(1234567);
   await page.reload();
   await page.getByRole("button", { name: "เปิดโฟลเดอร์ข้อมูลที่มีอยู่" }).click();
-  await typeButton(page, "SSF").click();
+  await chooseType(page, "SSF");
   await page.getByRole("button", { name: /หนังสือรับรองกองทุนทดสอบ/ }).click();
   await expect(editor.getByLabel(/ประเภทเอกสารย่อย/)).toHaveValue("fund_ssf");
   await expect(editor.getByLabel(/ยอดตามหลักฐาน/)).toHaveValue("12345.67");
-  await expect(page.getByRole("heading", { name: /เลือกหมวดเอกสาร/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /รายการเอกสาร/ })).toBeVisible();
 });
 
 test("resets hidden search/status/trash filters and preselects RMF, ThaiESGX and health documents", async ({ page }) => {
   const editor = page.getByRole("form", { name: "แก้ไขรายการ" });
   for (const [label, id] of [["RMF", "fund_rmf"], ["ThaiESGX", "fund_thai_esgx"]] as const) {
-    await typeButton(page, label).click();
+    await chooseType(page, label);
     await page.getByRole("button", { name: "เพิ่มเอกสารในหมวดนี้", exact: true }).click();
     await expect(editor.getByLabel(/ประเภทเอกสารย่อย/)).toHaveValue(id);
     await page.getByRole("searchbox").fill("non-matching");
     await page.getByRole("combobox", { name: "สถานะ", exact: true }).selectOption("reviewed");
     await page.getByRole("button", { name: "ดูถังขยะ", exact: true }).click();
   }
+  await page.getByRole("button", { name: "เปลี่ยนหมวด", exact: true }).click();
   await page.getByRole("button", { name: "เลือกประเภท เบี้ยประกัน / ประกันสุขภาพ", exact: true }).click();
   await expect(page.getByRole("searchbox")).toHaveValue("");
   await expect(page.getByRole("combobox", { name: "สถานะ", exact: true })).toHaveValue("");
@@ -91,7 +100,7 @@ test("resets hidden search/status/trash filters and preselects RMF, ThaiESGX and
 });
 
 test("keeps fund classification and files through review, changes, trash and restore, then purges safely", async ({ page }) => {
-  await typeButton(page, "RMF").click();
+  await chooseType(page, "RMF");
   await page.getByRole("button", { name: "เพิ่มเอกสารในหมวดนี้", exact: true }).click();
   const editor = page.getByRole("form", { name: "แก้ไขรายการ" });
   await editor.locator('input[type="file"]').setInputFiles({ name: "fund.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4\nsynthetic fund evidence\n%%EOF") });
@@ -141,7 +150,7 @@ test("keeps a schema-3 health plan editable and preserves its format", async ({ 
     await data.write(JSON.stringify({ ...manifest, schemaVersion: 3 })); await data.close();
   }, fixture);
   await page.getByRole("button", { name: "เปิดโฟลเดอร์ข้อมูลที่มีอยู่" }).click();
-  await page.getByRole("button", { name: "คำนวณและวางแผน", exact: true }).click();
+  await page.getByRole("button", { name: "คำนวณภาษี", exact: true }).click();
   await expect(page.getByLabel(/เบี้ยสุขภาพที่จะจ่ายเพิ่มจากข้อมูลภาษี/)).toHaveValue("10,000.00");
   await expect(page.getByRole("button", { name: "บันทึกแผน", exact: true })).toBeEnabled();
   await page.getByLabel(/งบประมาณที่จ่ายเพิ่มได้/).fill("12000");
@@ -167,7 +176,7 @@ test("views a new type in schema 3 without writes, and only copies when adding i
   });
   await page.getByRole("button", { name: "เปิดโฟลเดอร์ข้อมูลที่มีอยู่" }).click();
   const original = await readData(page);
-  await typeButton(page, "SSF").click();
+  await chooseType(page, "SSF");
   expect(await readData(page)).toEqual(original);
   await page.getByRole("button", { name: "เพิ่มเอกสารในหมวดนี้", exact: true }).click();
   await expect(page.getByRole("heading", { name: "สร้างสำเนาสำหรับคุณสมบัติใหม่", exact: true })).toBeVisible();
@@ -175,7 +184,7 @@ test("views a new type in schema 3 without writes, and only copies when adding i
   await page.getByRole("button", { name: "ยกเลิกการย้ายข้อมูล", exact: true }).click();
   expect(await readData(page)).toEqual(original);
   await page.getByRole("button", { name: "เปิดโฟลเดอร์ข้อมูลที่มีอยู่" }).click();
-  await typeButton(page, "SSF").click();
+  await chooseType(page, "SSF");
   await page.getByRole("button", { name: "เพิ่มเอกสารในหมวดนี้", exact: true }).click();
   await page.evaluate(() => {
     (window as unknown as { showDirectoryPicker: () => Promise<FileSystemDirectoryHandle> }).showDirectoryPicker = async () => (await navigator.storage.getDirectory()).getDirectoryHandle(`category-upgraded-${Date.now()}`, { create: true });
@@ -189,10 +198,10 @@ test("views a new type in schema 3 without writes, and only copies when adding i
   await page.getByRole("button", { name: "สร้างสำเนารุ่นใหม่ในโฟลเดอร์ว่าง", exact: true }).click();
   await expect(page.getByRole("heading", { name: /เลือกหมวดเอกสาร/ })).toBeVisible();
   expect((await readData(page)).records).toHaveLength(0);
-  await typeButton(page, "SSF").click();
+  await chooseType(page, "SSF");
   await page.getByRole("button", { name: "เพิ่มเอกสารในหมวดนี้", exact: true }).click();
   await expect(page.getByRole("form", { name: "แก้ไขรายการ" }).getByLabel(/ประเภทเอกสารย่อย/)).toHaveValue("fund_ssf");
-  expect(await readData(page)).toMatchObject({ schemaVersion: 4, records: [{ category: "deduction_retirement", subcategory: "fund_ssf" }] });
+  expect(await readData(page)).toMatchObject({ schemaVersion: 5, records: [{ category: "deduction_retirement", subcategory: "fund_ssf" }] });
   const source = await page.evaluate(async () => {
     const folder = (window as unknown as { originalFolder: FileSystemDirectoryHandle }).originalFolder;
     return JSON.parse(await (await (await folder.getFileHandle("data.json")).getFile()).text());
