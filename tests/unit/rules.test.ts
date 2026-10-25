@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { bundlePath, coverageFor, isTrustedMatch, ruleBundleSchema, safeOfficialHref } from "../../src/domain/rules";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { bundlePath, coverageFor, isTrustedMatch, numericBlockers, parseRuleBundle, ruleBundleSchema, safeOfficialHref } from "../../src/domain/rules";
 import { CATEGORY_IDS } from "../../src/domain/documents";
 
 describe("safeOfficialHref", () => {
@@ -54,5 +56,34 @@ describe("bundle trust", () => {
   });
   it("returns unavailable when no bundle is pinned (never falls back to another year)", () => {
     expect(coverageFor(null, "donation_general")).toBe("unavailable");
+  });
+});
+
+describe("rule bundle schema 2", () => {
+  const shipped = JSON.parse(readFileSync(resolve(process.cwd(), "public/rules/2025/2025-slice-rule2-1.json"), "utf-8"));
+  it("parses the shipped 2025 slice bundle through version dispatch", () => {
+    expect(parseRuleBundle(shipped)?.schemaVersion).toBe(2);
+  });
+  it("keeps the shipped slice unreviewed with rounding unverified and lists the blockers", () => {
+    expect(shipped.officialReviewed).toBe(false);
+    const blockers = numericBlockers(parseRuleBundle(shipped));
+    expect(blockers.some((b) => b.includes("ปัดเศษ"))).toBe(true);
+    expect(blockers.some((b) => b.includes("social_security"))).toBe(true);
+  });
+  it("refuses officialReviewed true without verified rounding and slice components", () => {
+    expect(parseRuleBundle({ ...shipped, officialReviewed: true })).toBeNull();
+  });
+  it("rejects a source outside the official https hosts", () => {
+    const bad = { ...shipped, sources: [{ ...shipped.sources[0], url: "https://example.com/x.pdf" }, ...shipped.sources.slice(1)] };
+    expect(parseRuleBundle(bad)).toBeNull();
+  });
+  it("rejects brackets that do not ascend and an open bracket that is not last", () => {
+    const b = structuredClone(shipped);
+    b.calculation.brackets[2].upToSatang = 15000000;
+    expect(parseRuleBundle(b)).toBeNull();
+  });
+  it("returns null for unknown schema versions instead of falling back", () => {
+    expect(parseRuleBundle({ ...shipped, schemaVersion: 3 })).toBeNull();
+    expect(parseRuleBundle({ ...shipped, schemaVersion: "2" })).toBeNull();
   });
 });

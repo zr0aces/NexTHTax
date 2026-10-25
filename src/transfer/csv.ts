@@ -1,4 +1,4 @@
-import { CATEGORIES, STATUS_LABELS } from "../domain/documents";
+import { CATEGORIES, subcategoriesFor, subcategoryLabel, STATUS_LABELS } from "../domain/documents";
 import { type RecordEntry } from "../domain/schema";
 
 const FORMULA_LEAD = /^[\s]*[=+\-@\t\r]/;
@@ -16,7 +16,7 @@ export function formatPlainBaht(satang: number | null): string {
   return `${baht}.${String(cents).padStart(2, "0")}`;
 }
 
-const HEADER = ["ปีภาษี", "วันที่", "หมวด", "ชื่อรายการ", "ผู้ออกเอกสาร", "สถานะ", "ยอดหลักฐาน (บาท)", "ยอดที่เลือกใช้สิทธิ (บาท)", "หัก ณ ที่จ่าย (บาท)", "หมายเหตุ"];
+const HEADER = ["ปีภาษี", "วันที่", "หมวด", "ชื่อรายการ", "ผู้ออกเอกสาร", "สถานะ", "ยอดหลักฐาน (บาท)", "ยอดที่เลือกใช้สิทธิ (บาท)", "หัก ณ ที่จ่าย (บาท)", "หมายเหตุ", "รหัสประเภทเอกสารย่อย", "ประเภทเอกสารย่อย"];
 
 /** UTF-8 CSV with BOM for Thai text in spreadsheet apps. This is a working report, not a filing format. */
 export function recordsToCsv(records: readonly RecordEntry[], taxYear: number): string {
@@ -33,6 +33,8 @@ export function recordsToCsv(records: readonly RecordEntry[], taxYear: number): 
       formatPlainBaht(r.claimedAmountSatang),
       formatPlainBaht(r.withheldAmountSatang),
       r.notes,
+      r.subcategory ?? "",
+      subcategoriesFor(r.category).length > 0 ? subcategoryLabel(r.subcategory) : "",
     ]);
   const lines = [HEADER, ...rows].map((cells) => cells.map(escapeCell).join(","));
   return `﻿${lines.join("\r\n")}\r\n`;

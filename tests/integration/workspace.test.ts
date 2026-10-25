@@ -21,7 +21,7 @@ function expectBytes(actual: Uint8Array | undefined, expected: Uint8Array): void
 const newRecord = (overrides: Partial<RecordEntry> = {}): RecordEntry => ({
   id: crypto.randomUUID(),
   taxYear: 2026,
-  category: "deduction_insurance",
+  category: "deduction_insurance", subcategory: null,
   date: "2026-05-01",
   title: "เบี้ยประกันชีวิต",
   issuer: "บริษัทประกันตัวอย่าง",
@@ -39,7 +39,7 @@ const newRecord = (overrides: Partial<RecordEntry> = {}): RecordEntry => ({
 
 async function open(root: ReturnType<typeof createMemoryFolder>): Promise<OpenResult> {
   const result = await openWorkspace(root);
-  if ("needsSetup" in result) throw new Error("unexpected setup");
+  if ("needsSetup" in result || "upgradeRequired" in result) throw new Error("unexpected setup");
   return result;
 }
 
@@ -69,7 +69,7 @@ describe("workspace creation and open", () => {
     const root = createMemoryFolder();
     await createWorkspace(root, "ผู้ทดสอบ");
     const before = await readTree(root, "data.json");
-    const newer = new TextEncoder().encode(JSON.stringify({ schemaVersion: 2, anything: true }));
+    const newer = new TextEncoder().encode(JSON.stringify({ schemaVersion: 3, anything: true }));
     const handle = await root.getFileHandle("data.json", { create: true });
     const w = await handle.createWritable();
     await w.write(newer);
@@ -95,7 +95,7 @@ describe("workspace commits", () => {
     const { session } = await createWorkspace(root, "ผู้ทดสอบ");
     const rec = newRecord();
     const next = await session.mutate((m) => {
-      m.years["2026"] = { taxYear: 2026, rulesVersion: null, rulesDigest: null, eligibility: {} };
+      m.years["2026"] = { taxYear: 2026, rulesVersion: null, rulesDigest: null, eligibility: {}, taxInputs: null, scenarios: [] };
       m.records.push(rec);
     });
     expect(next.revision).toBe(2);
@@ -216,7 +216,7 @@ describe("trash and permanent delete", () => {
     const a = newRecord({ attachmentIds: [att.attachment.id] });
     const b = newRecord({ title: "อีกรายการ", attachmentIds: [att.attachment.id] });
     await session.mutate((m) => {
-      m.years["2026"] = { taxYear: 2026, rulesVersion: null, rulesDigest: null, eligibility: {} };
+      m.years["2026"] = { taxYear: 2026, rulesVersion: null, rulesDigest: null, eligibility: {}, taxInputs: null, scenarios: [] };
       m.records.push(a, b);
     });
     await session.mutate((m) => {

@@ -3,8 +3,8 @@ import type { RecordDraft, ReviewStatus } from "./domain/documents";
 import { invalidatesReview } from "./domain/documents";
 import { bangkokCalendarYear, bangkokDateString } from "./domain/years";
 import { isSupportedTaxYear } from "./domain/years";
-import { type Manifest, type RecordEntry, type Attachment } from "./domain/schema";
-import { type RuleBundle, bundlePath } from "./domain/rules";
+import { type Manifest, type RecordEntry, type Attachment, type LegacyManifest } from "./domain/schema";
+import { type AnyRuleBundle, bundlePath } from "./domain/rules";
 import { catalogEntryFor, fetchBundle, fetchCatalog, loadPinnedBundle } from "./storage/pinnedRules";
 import type { Catalog } from "./domain/rules";
 import {
@@ -17,10 +17,13 @@ import {
   openWorkspace,
   pickWorkspaceFolder,
 } from "./storage/workspace";
+import { migrateWorkspaceIntoEmptyFolder } from "./storage/migration";
 import { type DirHandleLike, StorageError } from "./storage/fs";
 import { WorkspaceScreen } from "./ui/WorkspaceScreen";
 import { YearOverview } from "./ui/YearOverview";
 import { DocumentList } from "./ui/DocumentList";
+import { TaxWorksheet } from "./ui/TaxWorksheet";
+import type { TaxInputs } from "./domain/taxInputs";
 import { DocumentEditor } from "./ui/DocumentEditor";
 import { BackupPanel } from "./ui/BackupPanel";
 import { RuleReview } from "./ui/RuleReview";
@@ -57,6 +60,7 @@ export function App() {
   const [session, setSession] = useState<WorkspaceSession | null>(null);
   const [root, setRoot] = useState<DirHandleLike | null>(null);
   const [setupRoot, setSetupRoot] = useState<DirHandleLike | null>(null);
+  const [upgrade, setUpgrade] = useState<{ source: DirHandleLike; manifest: LegacyManifest } | null>(null);
   const [manifest, setManifest] = useState<Manifest | null>(null);
   const [missing, setMissing] = useState<string[]>([]);
   const [pending, setPending] = useState<string[]>([]);
@@ -68,7 +72,7 @@ export function App() {
   const dirtyRef = useRef(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("documents");
-  const [pinned, setPinned] = useState<{ bundle: RuleBundle; digest: string } | null>(null);
+  const [pinned, setPinned] = useState<{ bundle: AnyRuleBundle; digest: string } | null>(null);
   const [catalog, setCatalog] = useState<Catalog | null>(null);
   const [catalogError, setCatalogError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -170,6 +174,7 @@ export function App() {
     setSelectedId(null);
     setSaveState("saved");
     setSetupRoot(null);
+    setUpgrade(null);
     setPreview(null);
     setExtraYears([]);
     const yearsWithData = Object.keys(result.session.manifest.years).map(Number).sort((a, b) => b - a);
@@ -190,8 +195,26 @@ export function App() {
         setSetupRoot(picked);
         return;
       }
+      if ("upgradeRequired" in result) {
+        setUpgrade({ source: picked, manifest: result.manifest });
+        return;
+      }
       attach(picked, result);
     });
+
+  const migrateFolder = () => run(async () => {
+    if (!upgrade || !confirmLeave()) return;
+    if (!window.confirm("สร้างสำเนาข้อมูลรุ่นใหม่ในโฟลเดอร์ว่างหรือไม่? ต้นฉบับจะไม่เปลี่ยนแปลง รายการเดิมจะยังไม่ระบุประเภทย่อย แอปรุ่นเก่าเปิดสำเนาใหม่ไม่ได้")) return;
+    const target = await pickWorkspaceFolder();
+    session?.close();
+    setSession(null);
+    setManifest(null);
+    await migrateWorkspaceIntoEmptyFolder(upgrade.source, target, true);
+    const opened = await openWorkspace(target);
+    if ("needsSetup" in opened || "upgradeRequired" in opened) throw new StorageError("write-failed", "สำเนายังไม่พร้อมเปิด");
+    attach(target, opened);
+    setNotice("เปิดสำเนารุ่นใหม่แล้ว ต้นฉบับคงเดิม ประเภทเอกสารเดิมยังไม่ระบุ และยังไม่เปิดคำนวณภาษี");
+  });
 
   const startNewFolder = () =>
     run(async () => {
@@ -232,10 +255,18 @@ export function App() {
     }
   };
 
+  const saveTaxInputs = async (taxYear: number, taxInputs: TaxInputs): Promise<void> => {
+    await commit((m) => {
+      const key = String(taxYear);
+      if (!m.years[key]) m.years[key] = { taxYear, rulesVersion: null, rulesDigest: null, eligibility: {}, taxInputs: null, scenarios: [] };
+      m.years[key].taxInputs = taxInputs;
+    });
+  };
+
   const saveRecord = async (id: string, draft: RecordDraft): Promise<RecordEntry> => {
     const next = await commit((m) => {
       const key = String(draft.taxYear);
-      if (!m.years[key]) m.years[key] = { taxYear: draft.taxYear, rulesVersion: null, rulesDigest: null, eligibility: {} };
+      if (!m.years[key]) m.years[key] = { taxYear: draft.taxYear, rulesVersion: null, rulesDigest: null, eligibility: {}, taxInputs: null, scenarios: [] };
       const r = m.records.find((x) => x.id === id);
       if (!r) throw new StorageError("invalid", "ไม่พบรายการ");
       let status: ReviewStatus = draft.status;
@@ -243,6 +274,7 @@ export function App() {
       Object.assign(r, {
         taxYear: draft.taxYear,
         category: draft.category,
+        subcategory: draft.subcategory,
         date: draft.date,
         title: draft.title,
         issuer: draft.issuer,
@@ -268,11 +300,12 @@ export function App() {
       const now = nowIso();
       await commit((m) => {
         const key = String(taxYear);
-        if (!m.years[key]) m.years[key] = { taxYear, rulesVersion: null, rulesDigest: null, eligibility: {} };
+        if (!m.years[key]) m.years[key] = { taxYear, rulesVersion: null, rulesDigest: null, eligibility: {}, taxInputs: null, scenarios: [] };
         m.records.push({
           id,
           taxYear,
           category: "other",
+          subcategory: null,
           date: bangkokDateString(),
           title: "รายการใหม่",
           issuer: "",
@@ -465,7 +498,16 @@ export function App() {
         </div>
       )}
 
-      {!session && !setupRoot && (
+      {upgrade && (
+        <section aria-labelledby="upgrade-title" className="entry">
+          <h2 id="upgrade-title">ข้อมูลรุ่นเดิม ต้องสร้างสำเนารุ่นใหม่ก่อนแก้ไข</h2>
+          <p>{upgrade.manifest.taxpayer.displayName} · {upgrade.manifest.records.length} รายการ</p>
+          <p>ต้นฉบับและไฟล์กู้คืนจะไม่ถูกแก้ไข สำเนาใช้กับแอปรุ่นใหม่เท่านั้น รายการเดิมยังไม่ระบุประเภทย่อย กรุณาเก็บต้นฉบับไว้สำหรับย้อนกลับ</p>
+          <button type="button" disabled={busy} onClick={() => void migrateFolder()}>สร้างสำเนารุ่นใหม่ในโฟลเดอร์ว่าง</button>
+          <button type="button" disabled={busy} onClick={() => setUpgrade(null)}>ยกเลิกการย้ายข้อมูล</button>
+        </section>
+      )}
+      {!session && !setupRoot && !upgrade && (
         <WorkspaceScreen
           supported={supported}
           setupPending={false}
@@ -524,6 +566,13 @@ export function App() {
                   <button type="submit">เพิ่มปี</button>
                 </form>
               </div>
+              <TaxWorksheet
+                manifest={manifest}
+                taxYear={taxYear}
+                bundle={pinned?.bundle ?? null}
+                ruleDigest={pinned?.digest ?? null}
+                onSave={(taxInputs) => saveTaxInputs(taxYear, taxInputs)}
+              />
               <div className="grid">
                 <DocumentList
                   records={yearRecords}

@@ -20,6 +20,7 @@ export interface DirHandleLike {
   getDirectoryHandle(name: string, opts?: { create?: boolean }): Promise<DirHandleLike>;
   removeEntry(name: string, opts?: { recursive?: boolean }): Promise<void>;
   queryPermission?(opts: { mode: "readwrite" }): Promise<"granted" | "denied" | "prompt">;
+  isSameEntry?(other: DirHandleLike): Promise<boolean>;
   requestPermission?(opts: { mode: "readwrite" }): Promise<"granted" | "denied" | "prompt">;
 }
 
@@ -29,6 +30,7 @@ export class StorageError extends Error {
       | "permission"
       | "not-empty"
       | "newer-schema"
+      | "upgrade-required"
       | "invalid"
       | "conflict"
       | "capacity"

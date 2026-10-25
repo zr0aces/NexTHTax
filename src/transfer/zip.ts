@@ -3,7 +3,8 @@ import { z } from "zod";
 import { LIMITS } from "../storage/capacity";
 import { type DirHandleLike, StorageError, isNotFound, listNames, readFileBytes, resolveDir, writeVerified } from "../storage/fs";
 import { sha256Hex } from "../storage/hash";
-import { decodeManifest } from "../storage/manifest";
+import { upgradeManifestV1, clearImportedConfirmations, validateWorkspaceFiles, assertMigrationBudget } from "../storage/migration";
+import { decodeManifest, encodeManifest } from "../storage/manifest";
 import { ATTACHMENT_DIR, DATA_FILE, RULES_DIR, openWorkspace, type OpenResult, type WorkspaceSession } from "../storage/workspace";
 import { RECOVERY_DIR } from "../storage/recovery";
 import { ATTACHMENT_FILE_PATTERN } from "../storage/attachments";
@@ -91,7 +92,7 @@ export async function createBackupZip(root: DirHandleLike, session: WorkspaceSes
  * Restores a backup ZIP into an EMPTY new folder. Validates every entry name and total size during decompression,
  * verifies inventory hashes, writes data.json last, then reopens. Failure leaves a marker and never opens as ready.
  */
-export async function restoreZipIntoEmptyFolder(root: DirHandleLike, zipBytes: Uint8Array): Promise<OpenResult> {
+export async function restoreZipIntoEmptyFolder(root: DirHandleLike, zipBytes: Uint8Array, confirmLegacy?: () => boolean): Promise<OpenResult> {
   if ((await listNames(root)).length > 0) throw new StorageError("not-empty", "กู้คืนได้เฉพาะโฟลเดอร์ว่างใหม่เท่านั้น");
   let entryCount = 0;
   let declaredTotal = 0;
@@ -133,6 +134,15 @@ export async function restoreZipIntoEmptyFolder(root: DirHandleLike, zipBytes: U
       throw new StorageError("invalid", `ZIP ไม่มีไฟล์แนบ ${att.displayName} ตามข้อมูล`);
     }
   }
+  const workspaceFiles = new Map(Object.entries(extracted).filter(([path]) => path !== BACKUP_MANIFEST));
+  // Legacy conversion has stricter preconditions (no pending candidates, exact references). Current ZIPs keep baseline restore behavior.
+  if (manifest.schemaVersion === 1) {
+    await validateWorkspaceFiles(workspaceFiles, manifest);
+    if (!confirmLegacy?.()) throw new StorageError("upgrade-required", "ยกเลิกการแปลง ZIP รุ่นเดิม ไม่มีการเขียนข้อมูล");
+  }
+  const current = manifest.schemaVersion === 1 ? upgradeManifestV1(manifest) : clearImportedConfirmations(manifest);
+  if (manifest.schemaVersion === 1) assertMigrationBudget(workspaceFiles, current);
+  const currentBytes = encodeManifest(current);
   const written: string[] = [];
   try {
     for (const [path, bytes] of Object.entries(extracted)) {
@@ -140,7 +150,7 @@ export async function restoreZipIntoEmptyFolder(root: DirHandleLike, zipBytes: U
       await writeVerified(root, path, bytes);
       written.push(path);
     }
-    await writeVerified(root, DATA_FILE, dataBytes);
+    await writeVerified(root, DATA_FILE, currentBytes);
     written.push(DATA_FILE);
   } catch (err) {
     await writeVerified(root, RESTORE_MARKER, new TextEncoder().encode(JSON.stringify({ written })))
@@ -148,7 +158,7 @@ export async function restoreZipIntoEmptyFolder(root: DirHandleLike, zipBytes: U
     throw err instanceof StorageError ? err : new StorageError("write-failed", "กู้คืนไม่สำเร็จ โฟลเดอร์นี้ยังไม่พร้อมใช้งาน");
   }
   const reopened = await openWorkspace(root);
-  if ("needsSetup" in reopened) throw new StorageError("write-failed", "กู้คืนแล้วแต่เปิดข้อมูลไม่พบ");
+  if ("needsSetup" in reopened || "upgradeRequired" in reopened) throw new StorageError("write-failed", "กู้คืนแล้วแต่เปิดข้อมูลไม่พบ");
   return reopened;
 }
 

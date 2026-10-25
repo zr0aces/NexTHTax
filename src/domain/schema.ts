@@ -1,9 +1,10 @@
 import { z } from "zod";
-import { CATEGORY_IDS, REVIEW_STATUSES } from "./documents";
+import { CATEGORY_IDS, REVIEW_STATUSES, SUBCATEGORY_IDS, isSubcategoryApplicable } from "./documents";
+import { taxInputsSchema, taxScenarioSchema } from "./taxInputs";
 import { MAX_SAFE_SATANG } from "./money";
 import { isSupportedTaxYear, isValidIsoDate } from "./years";
 
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 export const MAX_ATTACHMENT_BYTES = 100 * 1024 * 1024;
 export const MAX_METADATA_BYTES = 20 * 1024 * 1024;
 
@@ -40,7 +41,7 @@ export const attachmentSchema = z
     path: ["path"],
   });
 
-export const recordSchema = z
+export const legacyRecordSchema = z
   .strictObject({
     id: uuidSchema,
     taxYear: taxYearSchema,
@@ -59,26 +60,38 @@ export const recordSchema = z
     trashedAt: z.iso.datetime().nullable(),
   });
 
-export const yearSchema = z.strictObject({
+export const recordSchema = legacyRecordSchema.extend({
+  subcategory: z.enum(SUBCATEGORY_IDS).nullable(),
+}).refine((r) => isSubcategoryApplicable(r.category, r.subcategory), {
+  message: "ประเภทเอกสารย่อยไม่ตรงกับหมวด", path: ["subcategory"],
+});
+
+export const legacyYearSchema = z.strictObject({
   taxYear: taxYearSchema,
   rulesVersion: z.string().max(64).nullable(),
   rulesDigest: sha256Schema.nullable(),
   eligibility: z.record(z.string().max(64), z.enum(["yes", "no", "unknown"])),
 });
 
-export const manifestSchema = z
-  .strictObject({
-    schemaVersion: z.literal(SCHEMA_VERSION),
+export const yearSchema = legacyYearSchema.extend({
+  taxInputs: taxInputsSchema.nullable(),
+  scenarios: z.array(taxScenarioSchema).max(20),
+});
+
+const manifestFields = {
+    schemaVersion: z.literal(1),
     workspaceId: uuidSchema,
     revision: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER),
     createdAt: z.iso.datetime(),
     updatedAt: z.iso.datetime(),
     taxpayer: z.strictObject({ displayName: safeText(200).min(1) }),
-    years: z.record(z.string(), yearSchema),
-    records: z.array(recordSchema).max(20000),
+    years: z.record(z.string(), legacyYearSchema),
+    records: z.array(legacyRecordSchema).max(20000),
     attachments: z.record(z.string(), attachmentSchema),
-  })
-  .superRefine((m, ctx) => {
+};
+
+const legacyRoot = z.strictObject(manifestFields);
+function checkReferences(m: z.infer<typeof legacyRoot>, ctx: z.RefinementCtx) {
     const ids = new Set<string>();
     for (const r of m.records) {
       if (ids.has(r.id)) ctx.addIssue({ code: "custom", message: "record ID ซ้ำ", path: ["records"] });
@@ -93,7 +106,36 @@ export const manifestSchema = z
     for (const [key, year] of Object.entries(m.years)) {
       if (key !== String(year.taxYear)) ctx.addIssue({ code: "custom", message: "key ของปีไม่ตรง", path: ["years", key] });
     }
-  });
+}
+
+export const legacyManifestSchema = legacyRoot.superRefine(checkReferences);
+export const manifestSchema = z.strictObject({
+  ...manifestFields,
+  schemaVersion: z.literal(SCHEMA_VERSION),
+  years: z.record(z.string(), yearSchema),
+  records: z.array(recordSchema).max(20000),
+}).superRefine((m, ctx) => {
+  checkReferences({ ...m, schemaVersion: 1 }, ctx);
+  for (const year of Object.values(m.years)) {
+    const seen = new Set<string>();
+    const refs = new Set<string>();
+    for (const item of [...(year.taxInputs?.incomeItems ?? []), ...(year.taxInputs?.deductions ?? [])]) {
+      if (seen.has(item.id)) ctx.addIssue({ code: "custom", message: "worksheet event ID ซ้ำ" });
+      seen.add(item.id);
+      for (const id of item.sourceRecordIds) {
+        const record = m.records.find((r) => r.id === id);
+        if (!record || record.taxYear !== year.taxYear || refs.has(id)) ctx.addIssue({ code: "custom", message: "worksheet อ้างรายการผิดปี/ไม่มี/ซ้ำ" });
+        refs.add(id);
+      }
+      if ("category" in item && !isSubcategoryApplicable(item.category, item.subcategory)) ctx.addIssue({ code: "custom", message: "ประเภท worksheet ไม่ตรงหมวด" });
+    }
+    const scenarioIds = year.scenarios.map((s) => s.id);
+    if (new Set(scenarioIds).size !== scenarioIds.length) ctx.addIssue({ code: "custom", message: "scenario ID ซ้ำ" });
+  }
+});
+
+export type LegacyManifest = z.infer<typeof legacyManifestSchema>;
+export type StoredManifest = LegacyManifest | Manifest;
 
 export type Attachment = z.infer<typeof attachmentSchema>;
 export type RecordEntry = z.infer<typeof recordSchema>;

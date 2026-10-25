@@ -1,15 +1,15 @@
-import { CATEGORIES, categoryLabel } from "../domain/documents";
+import { CATEGORIES, categoryLabel, subcategoryLabel } from "../domain/documents";
 import { formatSatang } from "../domain/money";
 import type { Manifest } from "../domain/schema";
-import { coverageFor, type RuleBundle } from "../domain/rules";
-import { summarizeYear } from "../domain/summary";
+import { coverageFor, type AnyRuleBundle } from "../domain/rules";
+import { summarizeYear, summarizeSubcategories, type SummaryResult } from "../domain/summary";
 import { buddhistYear } from "../domain/years";
 
 interface Props {
   manifest: Manifest;
   taxYear: number;
   years: number[];
-  pinned: RuleBundle | null;
+  pinned: AnyRuleBundle | null;
   onYearChange: (year: number) => void;
 }
 
@@ -59,6 +59,23 @@ export function YearOverview({ manifest, taxYear, years, pinned, onYearChange }:
           </dd>
         </dl>
       )}
+      <section aria-labelledby="subcategories-title">
+        <h3 id="subcategories-title">รวบรวมกองทุนและประกันแยกประเภท</h3>
+        <p>รายการย่อยเป็นส่วนหนึ่งของยอดหมวดหลัก ไม่บวกซ้ำกับยอดรวม และไม่ใช่ยอดสิทธิที่กฎหมายรับรอง</p>
+        {summarizeSubcategories(manifest.records, taxYear).map((group) => (
+          <div key={group.parent}>
+            <h4>{categoryLabel(group.parent)}</h4>
+            <table>
+              <caption>ยอดปี {taxYear} · {categoryLabel(group.parent)}</caption>
+              <thead><tr><th scope="col">ประเภท</th><th scope="col">ยอดหลักฐาน</th><th scope="col">ยอดที่เลือกใช้สิทธิ</th><th scope="col">ตรวจทานแล้ว</th><th scope="col">ยังไม่ทราบยอด</th><th scope="col">ไม่นับ / ถังขยะ</th></tr></thead>
+              <tbody>
+                <SubtypeRow label="รวมหมวดหลัก" summary={group.summary} />
+                {group.children.map((row) => <SubtypeRow key={row.subcategory ?? "unclassified"} label={subcategoryLabel(row.subcategory)} summary={row.summary} />)}
+              </tbody>
+            </table>
+          </div>
+        ))}
+      </section>
       <h3>กฎที่ใช้กับปีนี้</h3>
       {pinned ? (
         <p>
@@ -85,6 +102,12 @@ export function YearOverview({ manifest, taxYear, years, pinned, onYearChange }:
       </section>
     </section>
   );
+}
+
+function SubtypeRow({ label, summary }: { label: string; summary: SummaryResult }) {
+  return <tr><th scope="row">{label}</th>{summary.ok ? <>
+    <td>{formatSatang(summary.evidenceTotal)}</td><td>{formatSatang(summary.claimedTotal)}</td><td>{formatSatang(summary.reviewedClaimedTotal)}</td><td>{summary.unknownClaimCount}</td><td>{summary.excludedCount} / {summary.trashedCount}</td>
+  </> : <td colSpan={5}>ยอดเกินช่วงที่คำนวณได้ ไม่แสดงยอดรวม</td>}</tr>;
 }
 
 function coverageText(status: "verified" | "partial" | "unavailable"): string {

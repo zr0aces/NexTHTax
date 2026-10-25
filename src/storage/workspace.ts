@@ -1,7 +1,7 @@
-import { MAX_ATTACHMENT_BYTES, MAX_METADATA_BYTES, MEDIA_EXTENSIONS, SCHEMA_VERSION, type Attachment, type Manifest } from "../domain/schema";
+import { MAX_ATTACHMENT_BYTES, MAX_METADATA_BYTES, MEDIA_EXTENSIONS, SCHEMA_VERSION, type Attachment, type Manifest, type LegacyManifest, type StoredManifest } from "../domain/schema";
 import { readImageHeader } from "../domain/imageHeaders";
 import { acquireWriterLock, type WriterLock } from "./locking";
-import { decodeManifest, encodeManifest, validateManifest } from "./manifest";
+import { decodeManifest, decodeCurrentManifest, encodeManifest, validateManifest } from "./manifest";
 import {
   type DirHandleLike,
   StorageError,
@@ -35,6 +35,8 @@ export interface OpenResult {
   pendingCandidates: string[];
 }
 
+export interface UpgradeRequired { upgradeRequired: true; manifest: LegacyManifest; }
+
 export type AddAttachmentResult =
   | { status: "added"; attachment: Attachment; previewable: boolean }
   | { status: "duplicate"; existingIds: string[] };
@@ -56,14 +58,16 @@ async function ensurePermission(root: DirHandleLike): Promise<void> {
 }
 
 /** Reads an existing folder. Returns needsSetup when the folder is empty and must be initialized with a taxpayer name. */
-export async function openWorkspace(root: DirHandleLike): Promise<OpenResult | { needsSetup: true }> {
+export async function openWorkspace(root: DirHandleLike): Promise<OpenResult | { needsSetup: true } | UpgradeRequired> {
   await ensurePermission(root);
+  if ((await listNames(root)).some((entry) => entry.name === ".restore-incomplete.json")) throw new StorageError("recovery", "โฟลเดอร์นี้กู้คืน/ย้ายไม่สมบูรณ์ กรุณาเลือกโฟลเดอร์ว่างใหม่เพื่อทำซ้ำ");
   const bytes = await readFileBytes(root, DATA_FILE, MAX_METADATA_BYTES);
   if (!bytes) {
     if ((await listNames(root)).length === 0) return { needsSetup: true };
     throw new StorageError("not-empty", "โฟลเดอร์นี้ไม่ว่างและไม่มี data.json ของ NexTHTax");
   }
   const manifest = decodeManifest(bytes);
+  if (manifest.schemaVersion === 1) return { upgradeRequired: true, manifest };
   const baselineSha = await sha256Hex(bytes);
   const inventory = await inspectAttachments(root, manifest);
   const lock = await acquireWriterLock(manifest.workspaceId);
@@ -100,11 +104,11 @@ export async function createWorkspace(root: DirHandleLike, taxpayerName: string)
   await resolveDir(root, [RECOVERY_DIR], true);
   await writeVerified(root, DATA_FILE, bytes);
   const reopened = await openWorkspace(root);
-  if ("needsSetup" in reopened) throw new StorageError("write-failed", "สร้างข้อมูลแล้วแต่อ่านกลับไม่พบ data.json");
+  if ("needsSetup" in reopened || "upgradeRequired" in reopened) throw new StorageError("write-failed", "สร้างข้อมูลแล้วแต่อ่านกลับไม่พบ data.json");
   return reopened;
 }
 
-async function inspectAttachments(root: DirHandleLike, manifest: Manifest): Promise<{ missing: string[]; orphans: string[] }> {
+async function inspectAttachments(root: DirHandleLike, manifest: StoredManifest): Promise<{ missing: string[]; orphans: string[] }> {
   const missing: string[] = [];
   const orphans: string[] = [];
   let names: Array<{ name: string; kind: "file" | "directory" }> = [];
@@ -199,7 +203,7 @@ export class WorkspaceSession {
     if (this.pendingRel) {
       const pending = await readFileBytes(this.root, this.pendingRel, MAX_METADATA_BYTES);
       if (pending && (await sha256Hex(pending)) === sha) {
-        this.manifestState = decodeManifest(pending);
+        this.manifestState = decodeCurrentManifest(pending);
         this.baselineSha = sha;
         this.pendingRel = null;
         return;
@@ -372,6 +376,8 @@ export class WorkspaceSession {
         rulesVersion: version,
         rulesDigest: digest,
         eligibility: existing?.eligibility ?? {},
+        taxInputs: existing?.taxInputs ?? null,
+        scenarios: existing?.scenarios ?? [],
       };
       await this.commitLocked(next);
       return this.manifestState;
@@ -382,7 +388,7 @@ export class WorkspaceSession {
   ensureYear(taxYear: number): Promise<Manifest> {
     if (this.manifestState.years[String(taxYear)]) return Promise.resolve(this.manifestState);
     return this.mutate((draft) => {
-      draft.years[String(taxYear)] = { taxYear, rulesVersion: null, rulesDigest: null, eligibility: {} };
+      draft.years[String(taxYear)] = { taxYear, rulesVersion: null, rulesDigest: null, eligibility: {}, taxInputs: null, scenarios: [] };
     });
   }
 

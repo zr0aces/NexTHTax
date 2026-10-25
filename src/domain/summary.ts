@@ -1,4 +1,4 @@
-import { CATEGORIES } from "./documents";
+import { CATEGORIES, subcategoriesFor, type SubcategoryId } from "./documents";
 import { type RecordEntry } from "./schema";
 import { sumSatang } from "./money";
 
@@ -52,4 +52,20 @@ export function summarizeYear(records: readonly RecordEntry[], taxYear: number):
     excludedCount: ofYear.filter((r) => r.trashedAt === null && r.status === "excluded").length,
     trashedCount: ofYear.filter((r) => r.trashedAt !== null).length,
   };
+}
+
+/** Child partitions explain their parent subtotal; they must never be added to it again. */
+export function summarizeSubcategories(records: readonly RecordEntry[], taxYear: number) {
+  return (["deduction_retirement", "deduction_insurance"] as const).map((parent) => {
+    const selected = records.filter((r) => r.category === parent);
+    const ids: Array<SubcategoryId | null> = [...subcategoriesFor(parent).map((s) => s.id), null];
+    return {
+      parent,
+      summary: summarizeYear(selected, taxYear),
+      children: ids.map((subcategory) => ({
+        subcategory,
+        summary: summarizeYear(selected.filter((r) => r.subcategory === subcategory), taxYear),
+      })),
+    };
+  });
 }

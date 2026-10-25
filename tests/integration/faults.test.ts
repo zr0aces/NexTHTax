@@ -10,7 +10,7 @@ beforeEach(() => {
 });
 
 const rec = (title: string): RecordEntry => ({
-  id: crypto.randomUUID(), taxYear: 2026, category: "other", date: "2026-01-01", title, issuer: "", notes: "",
+  id: crypto.randomUUID(), taxYear: 2026, category: "other", subcategory: null, date: "2026-01-01", title, issuer: "", notes: "",
   evidenceAmountSatang: null, claimedAmountSatang: null, withheldAmountSatang: null, status: "waiting-document",
   attachmentIds: [], createdAt: nowIso(), updatedAt: nowIso(), trashedAt: null,
 });
@@ -34,7 +34,7 @@ describe("uncertain commit", () => {
     expect(next.records.map((r) => r.title)).toEqual(["รายการแรก", "รายการที่สอง"]);
 
     const reopened = await openWorkspace(root);
-    if ("needsSetup" in reopened) throw new Error("setup");
+    if ("needsSetup" in reopened || "upgradeRequired" in reopened) throw new Error("setup");
     expect(reopened.session.manifest.records.map((r) => r.title)).toEqual(["รายการแรก", "รายการที่สอง"]);
     const bytes = await readTree(root, "data.json");
     expect(bytes).toBeDefined();

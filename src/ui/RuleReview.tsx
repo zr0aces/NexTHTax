@@ -1,10 +1,10 @@
 import { CATEGORIES, categoryLabel } from "../domain/documents";
-import { coverageFor, isTrustedMatch, safeOfficialHref, type Catalog, type RuleBundle } from "../domain/rules";
+import { coverageFor, isTrustedMatch, safeOfficialHref, type Catalog, type AnyRuleBundle } from "../domain/rules";
 import type { CatalogEntry } from "../domain/rules";
 
 interface Props {
   taxYear: number;
-  pinned: { bundle: RuleBundle; digest: string } | null;
+  pinned: { bundle: AnyRuleBundle; digest: string } | null;
   catalog: Catalog | null;
   catalogError: string | null;
   latest: CatalogEntry | null;

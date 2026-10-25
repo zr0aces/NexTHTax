@@ -3,7 +3,7 @@ import { parseForm } from "../../src/ui/DocumentEditor";
 
 const base = {
   taxYear: 2026,
-  category: "donation_general",
+  category: "donation_general", subcategory: null,
   date: "2026-06-15",
   title: "บริจาค",
   issuer: "มูลนิธิ",
@@ -28,5 +28,15 @@ describe("parseForm", () => {
     expect(parseForm({ ...base, status: "reviewed" }, [])).toMatchObject({ ok: false, errors: { status: expect.any(String) } });
     expect(parseForm({ ...base, status: "reviewed", noAttachmentConfirmed: true }, [])).toMatchObject({ ok: true });
     expect(parseForm({ ...base, status: "reviewed" }, ["11111111-2222-4333-8444-555555555555"])).toMatchObject({ ok: true });
+  });
+});
+
+describe("parseForm subtype", () => {
+  it("carries a same-parent subtype and null into the draft", () => {
+    expect(parseForm({ ...base, category: "deduction_retirement", subcategory: "fund_rmf" }, [])).toMatchObject({ ok: true, draft: { subcategory: "fund_rmf" } });
+    expect(parseForm({ ...base, category: "donation_general", subcategory: null }, [])).toMatchObject({ ok: true, draft: { subcategory: null } });
+  });
+  it("rejects a subtype from the other parent and keeps the form", () => {
+    expect(parseForm({ ...base, category: "deduction_retirement", subcategory: "insurance_life" }, [])).toMatchObject({ ok: false, errors: { subcategory: expect.any(String) } });
   });
 });

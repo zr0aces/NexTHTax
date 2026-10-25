@@ -74,7 +74,7 @@ export function BackupPanel({ root, session, manifest, taxYear, canExport, onOpe
       if (file.size > LIMITS.zipBudgetBytes) throw new Error("ไฟล์ ZIP ใหญ่เกิน 1 GiB");
       const bytes = new Uint8Array(await file.arrayBuffer());
       const target = await pickWorkspaceFolder();
-      onOpened(target, await restoreZipIntoEmptyFolder(target, bytes));
+      onOpened(target, await restoreZipIntoEmptyFolder(target, bytes, () => window.confirm("ZIP นี้เป็นข้อมูลรุ่นเดิม ยืนยันสร้างสำเนารุ่นใหม่ในโฟลเดอร์ว่างหรือไม่? ไฟล์ต้นฉบับคงเดิม แอปรุ่นเก่าเปิดสำเนาใหม่ไม่ได้")));
       notify("กู้คืนสำเร็จ โฟลเดอร์ใหม่พร้อมใช้งาน โฟลเดอร์เดิมไม่ถูกแก้ไข");
     });
 
@@ -83,9 +83,9 @@ export function BackupPanel({ root, session, manifest, taxYear, canExport, onOpe
       if (!file) return;
       const bytes = new Uint8Array(await file.arrayBuffer());
       const target = await pickWorkspaceFolder();
-      await importMetadataIntoEmptyFolder(target, bytes);
+      await importMetadataIntoEmptyFolder(target, bytes, () => window.confirm("JSON นี้เป็นข้อมูลรุ่นเดิม ยืนยันสร้างสำเนารุ่นใหม่หรือไม่? ไม่รวมไฟล์แนบและแอปรุ่นเก่าเปิดสำเนาใหม่ไม่ได้"));
       const opened = await openWorkspace(target);
-      if ("needsSetup" in opened) throw new Error("นำเข้าแล้วแต่ไม่พบข้อมูล");
+      if ("needsSetup" in opened || "upgradeRequired" in opened) throw new Error("นำเข้าแล้วแต่ไม่พบข้อมูล");
       onOpened(target, opened);
       notify(
         opened.missingAttachments.length > 0

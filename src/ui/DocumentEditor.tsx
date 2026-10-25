@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { CATEGORIES, REVIEW_STATUSES, STATUS_LABELS, type RecordDraft, type ReviewStatus, validateDraft } from "../domain/documents";
+import { CATEGORIES, subcategoriesFor, isSubcategoryApplicable, type SubcategoryId, REVIEW_STATUSES, STATUS_LABELS, type RecordDraft, type ReviewStatus, validateDraft } from "../domain/documents";
 import { parseBahtInput } from "../domain/money";
 import type { Attachment, RecordEntry } from "../domain/schema";
 import type { AddAttachmentResult } from "../storage/workspace";
@@ -22,6 +22,7 @@ interface Props {
 interface Form {
   taxYear: number;
   category: string;
+  subcategory: SubcategoryId | null;
   date: string;
   title: string;
   issuer: string;
@@ -37,6 +38,7 @@ function toForm(r: RecordEntry): Form {
   return {
     taxYear: r.taxYear,
     category: r.category,
+    subcategory: r.subcategory,
     date: r.date,
     title: r.title,
     issuer: r.issuer,
@@ -65,6 +67,7 @@ export function parseForm(f: Form, attachmentIds: string[]): ParsedForm {
   const draft: RecordDraft = {
     taxYear: f.taxYear,
     category: f.category,
+    subcategory: f.subcategory,
     date: f.date,
     title: f.title,
     issuer: f.issuer,
@@ -121,7 +124,11 @@ export function DocumentEditor({ record, attachments, missingNames, onSave, onUn
   const update = <K extends keyof Form>(key: K, value: Form[K]) => {
     version.current += 1;
     setDirty(true);
-    setForm((f) => ({ ...f, [key]: value }));
+    setForm((f) => {
+      const next = { ...f, [key]: value };
+      if (key === "category" && !isSubcategoryApplicable(next.category, next.subcategory)) next.subcategory = null;
+      return next;
+    });
   };
 
   const handleFile = async (file: File | undefined) => {
@@ -172,6 +179,17 @@ export function DocumentEditor({ record, attachments, missingNames, onSave, onUn
           ))}
         </select>
       </label>
+      {subcategoriesFor(form.category).length > 0 && (
+        <label>
+          ประเภทเอกสารย่อย
+          <select value={form.subcategory ?? ""} onChange={(e) => update("subcategory", (e.target.value || null) as SubcategoryId | null)} aria-invalid={!!errors.subcategory}>
+            <option value="">ยังไม่ระบุประเภท</option>
+            {subcategoriesFor(form.category).map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+          </select>
+          {errors.subcategory && <span className="error">{errors.subcategory}</span>}
+          <span className="muted">ใช้จัดเอกสาร ไม่ใช่การรับรองสิทธิลดหย่อน</span>
+        </label>
+      )}
       <label>
         ผู้ออกเอกสาร
         <input value={form.issuer} maxLength={200} onChange={(e) => update("issuer", e.target.value)} />

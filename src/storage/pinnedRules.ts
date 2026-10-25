@@ -1,24 +1,24 @@
-import { bundlePath, catalogSchema, ruleBundleSchema, type Catalog, type CatalogEntry, type RuleBundle } from "../domain/rules";
+import { bundlePath, catalogSchema, parseRuleBundle, type AnyRuleBundle, type Catalog, type CatalogEntry } from "../domain/rules";
 import { type Manifest, MAX_METADATA_BYTES } from "../domain/schema";
 import { type DirHandleLike, StorageError, readFileBytes } from "./fs";
 import { sha256Hex } from "./hash";
 
 export interface LoadedBundle {
-  bundle: RuleBundle;
+  bundle: AnyRuleBundle;
   digest: string;
 }
 
-function parseBundle(bytes: Uint8Array, expectedYear: number): RuleBundle {
+function parseBundle(bytes: Uint8Array, expectedYear: number): AnyRuleBundle {
   let json: unknown;
   try {
     json = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
   } catch {
     throw new StorageError("invalid", "ไฟล์กฎไม่ใช่ JSON UTF-8 ที่ถูกต้อง");
   }
-  const parsed = ruleBundleSchema.safeParse(json);
-  if (!parsed.success) throw new StorageError("invalid", "ไฟล์กฎไม่ผ่านการตรวจสอบโครงสร้าง");
-  if (parsed.data.taxYear !== expectedYear) throw new StorageError("invalid", "ปีของไฟล์กฎไม่ตรงกับปีที่ปักไว้");
-  return parsed.data;
+  const parsed = parseRuleBundle(json);
+  if (!parsed) throw new StorageError("invalid", "ไฟล์กฎไม่ผ่านการตรวจสอบโครงสร้าง");
+  if (parsed.taxYear !== expectedYear) throw new StorageError("invalid", "ปีของไฟล์กฎไม่ตรงกับปีที่ปักไว้");
+  return parsed;
 }
 
 /** Loads the rule snapshot pinned for a year. Digest must match the value recorded in the manifest. */

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { CATEGORIES, categoryLabel, STATUS_LABELS, type ReviewStatus, REVIEW_STATUSES } from "../domain/documents";
+import { CATEGORIES, subcategoriesFor, subcategoryLabel, categoryLabel, STATUS_LABELS, type ReviewStatus, REVIEW_STATUSES } from "../domain/documents";
 import { formatSatang } from "../domain/money";
 import type { RecordEntry } from "../domain/schema";
 
@@ -17,6 +17,7 @@ interface Props {
 export function DocumentList({ records, selectedId, onSelect, onAdd, onTrash, onRestore, onPurge }: Props) {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("");
+  const [subcategory, setSubcategory] = useState("");
   const [status, setStatus] = useState<ReviewStatus | "">("");
   const [showTrash, setShowTrash] = useState(false);
 
@@ -25,10 +26,11 @@ export function DocumentList({ records, selectedId, onSelect, onAdd, onTrash, on
     return records
       .filter((r) => (showTrash ? r.trashedAt !== null : r.trashedAt === null))
       .filter((r) => category === "" || r.category === category)
+      .filter((r) => subcategory === "" || (subcategory === "unclassified" ? r.subcategory === null : r.subcategory === subcategory))
       .filter((r) => status === "" || r.status === status)
-      .filter((r) => q === "" || `${r.title} ${r.issuer} ${r.notes}`.toLowerCase().includes(q))
+      .filter((r) => q === "" || `${r.title} ${r.issuer} ${r.notes} ${categoryLabel(r.category)} ${subcategoriesFor(r.category).length ? subcategoryLabel(r.subcategory) : ""}`.toLowerCase().includes(q))
       .sort((a, b) => (a.date === b.date ? a.title.localeCompare(b.title, "th") : a.date.localeCompare(b.date)));
-  }, [records, query, category, status, showTrash]);
+  }, [records, query, category, subcategory, status, showTrash]);
 
   return (
     <section aria-labelledby="docs-title" className="documents">
@@ -40,13 +42,23 @@ export function DocumentList({ records, selectedId, onSelect, onAdd, onTrash, on
         </label>
         <label>
           หมวด
-          <select value={category} onChange={(e) => setCategory(e.target.value)}>
+          <select value={category} onChange={(e) => { setCategory(e.target.value); setSubcategory(""); }}>
             <option value="">ทุกหมวด</option>
             {CATEGORIES.map((c) => (
               <option key={c.id} value={c.id}>{c.label}</option>
             ))}
           </select>
         </label>
+        {subcategoriesFor(category).length > 0 && (
+          <label>
+            ประเภทเอกสารย่อย
+            <select value={subcategory} onChange={(e) => setSubcategory(e.target.value)}>
+              <option value="">ทุกประเภท</option>
+              <option value="unclassified">ยังไม่ระบุประเภท</option>
+              {subcategoriesFor(category).map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+            </select>
+          </label>
+        )}
         <label>
           สถานะ
           <select value={status} onChange={(e) => setStatus(e.target.value as ReviewStatus | "")}>
@@ -66,7 +78,7 @@ export function DocumentList({ records, selectedId, onSelect, onAdd, onTrash, on
           {visible.map((r) => (
             <li key={r.id} aria-current={r.id === selectedId ? "true" : undefined}>
               <button type="button" className="link" onClick={() => onSelect(r.id)}>
-                {r.date} · {r.title} · {categoryLabel(r.category)} · {STATUS_LABELS[r.status]}
+                {r.date} · {r.title} · {categoryLabel(r.category)}{subcategoriesFor(r.category).length > 0 ? ` / ${subcategoryLabel(r.subcategory)}` : ""} · {STATUS_LABELS[r.status]}
                 {r.claimedAmountSatang !== null ? ` · ใช้สิทธิ ${formatSatang(r.claimedAmountSatang)} บาท` : ""}
               </button>
               {showTrash ? (
