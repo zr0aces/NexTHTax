@@ -45,7 +45,7 @@ export function getRules(year: number): RuleSet {
   if (year === 2569) return structuredClone(current);
   return {
     schemaVersion: 1, taxYear: year, version: `${year}.pending`, status: "pending",
-    rules: current.rules.map(rule => ({...structuredClone(rule), taxYear: year, status: rule.kind === "documents" ? "expired" : "pending", cap: null, rateBps: null, sharedCap: null, effectiveFrom: `${year - 543}-01-01`, effectiveTo: `${year - 543}-12-31`, version: `${year}.pending`, reviewedAt: "", description: "กฎภาษีปีนี้ยังไม่ยืนยัน จัดเก็บเอกสารได้ แต่ไม่รวมยอดคำนวณ", sources: []})),
+    rules: current.rules.map(rule => ({...structuredClone(rule), taxYear: year, status: rule.kind === "documents" ? "expired" : "pending", cap: null, rateBps: null, sharedCap: null, effectiveFrom: `${year - 543}-01-01`, effectiveTo: `${year - 543}-12-31`, version: `${year}.pending`, reviewedAt: "", description: "กฎภาษีปีนี้ยังไม่ยืนยัน จัดเก็บเอกสารได้ แต่ไม่รวมยอดคำนวณ", sources: [], conditions: ["กฎภาษีปีนี้ยังไม่ยืนยัน จัดเก็บเอกสารได้ แต่ไม่ใช้วงเงินหรือเงื่อนไขปีก่อนเป็นสิทธิของปีนี้"]})),
     sharedCaps: {}, brackets: [], notes: ["กฎภาษีปีนี้ยังไม่ยืนยัน ไม่มีการนำวงเงินปีก่อนมาใช้"],
   };
 }

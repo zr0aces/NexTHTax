@@ -1,1 +1,74 @@
-{"date":"2026-10-25","rulesVersion":"2569.2","typecheck":"passed","unitAndIntegration":{"passed":118,"failed":0,"engine":68,"storage":50},"chromiumBrowser":{"passed":7,"failed":0,"durationSeconds":10.0},"staticBuild":{"passed":true,"directory":"dist","precacheAssetCount":224},"thaiPdf":{"passed":true,"pages":4,"checks":["Thai Unicode text extracted","first page rasterized","visual inspection"]},"npmAudit":{"vulnerabilities":0},"nativeOsFolderPicker":"not tested; adapter fixtures and native browser handle substitute only","crossBrowser":"not executed on Safari/Firefox","notes":"Package upgrades verified: Vite 8, TS 7, Lucide-React 1.x, React 19.3. All 118 unit tests, 7 e2e tests, build, and PDF rasterization verified."}
+{
+  "date": "2026-10-27",
+  "rulesVersion": "2569.3-reviewed-2026-10-27",
+  "typecheck": "passed",
+  "unitAndIntegration": {
+    "passed": 194,
+    "failed": 0,
+    "testFiles": 7
+  },
+  "chromiumBrowser": {
+    "passed": 23,
+    "failed": 0,
+    "durationSeconds": 26.3
+  },
+  "staticBuild": {
+    "passed": true,
+    "directory": "dist",
+    "precacheAssetCount": 224,
+    "warnings": [
+      "chunk size exceeds 500 kB"
+    ]
+  },
+  "ruleCatalogue": {
+    "total": 46,
+    "verified": 29,
+    "pending": 15,
+    "expired": 2
+  },
+  "activatedCategories": [
+    "spouse-life",
+    "teacher-fund"
+  ],
+  "pendingNewCategories": [
+    "adopted-child",
+    "art-purchase",
+    "cctv"
+  ],
+  "publicRuleDownload": {
+    "actualBrowserAndOffline": "passed at preview root",
+    "rootAndNestedUrlResolution": "passed focused tests",
+    "liveHosting": "not tested"
+  },
+  "privacy": "passed E2E: no user-data requests; no workspace localStorage or IndexedDB",
+  "snapshotSafety": "passed historical ZIP roundtrip, import consent, stale workspace/year rejection before/after backup, failed-backup rejection, metadata-only no-op, custom-record preservation",
+  "futureYear": "new unverified rules have no inherited numeric conditions or caps; existing snapshots unchanged",
+  "schemaVersion": 1,
+  "verificationOrder": [
+    "typecheck",
+    "test",
+    "build",
+    "test:e2e",
+    "verify-pdf"
+  ],
+  "thaiPdf": {
+    "passed": true,
+    "pages": 4,
+    "checks": [
+      "four expected text strings extracted",
+      "first page rasterized",
+      "first page visually inspected"
+    ]
+  },
+  "visualReview": [
+    "overview desktop",
+    "category limits mobile",
+    "Thai PDF first page"
+  ],
+  "npmAudit": "not run for this delivery",
+  "nativeOsFolderPicker": "not tested; native browser handle substitute only",
+  "crossBrowser": "not executed on Safari/Firefox",
+  "screenReader": "not tested",
+  "planValidation": "passed strict; zero warnings and failures",
+  "notes": "Unverified categories stay excluded; no automatic snapshot upgrade, schema migration, new dependencies, commit, push or deployment. Source ledger documents two activation gates and unresolved laws."
+}

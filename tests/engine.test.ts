@@ -3,6 +3,8 @@ import { calculate, progressiveTax, simulate } from "../src/domain/engine";
 import { getRules, importRules } from "../src/domain/rules";
 import { makeYear, addYear, replaceYearRules } from "../src/domain/workspace";
 import { newId, type TaxRecord, type TaxYearData, type Workspace } from "../src/domain/model";
+import { readFile } from "node:fs/promises";
+import { importZip, exportZip } from "../src/storage/zip";
 const B=(value:number)=>Math.round(value*100);
 function year(income:number|null=1_000_000):TaxYearData { const data=makeYear(2569);data.profile.income=income===null?null:B(income);return data; }
 function rec(categoryId:string,amount:number,facts:TaxRecord["facts"]={},extra:Partial<TaxRecord>={}):TaxRecord {return {id:newId(),categoryId,title:"ตัวอย่าง",amount:B(amount),date:"2026-06-01",eligibleAmount:null,provider:"",reference:"",note:"",documentStatus:"none",eligibility:"confirmed",checklist:[],attachments:[],facts,...extra};}
@@ -87,4 +89,55 @@ describe("ขีดจำกัดปีและหมวดก่อนแก�
  it("ปฏิเสธปีที่101ก่อนเปลี่ยนข้อมูลซึ่งจะบันทึกไม่ได้",()=>{const years=Array.from({length:100},(_,index)=>2569+index);const w:Workspace={manifest:{schemaVersion:1,id:newId(),name:"แฟ้มทดสอบ",revision:0,createdAt:"",updatedAt:"",years},years:Object.fromEntries(years.map(y=>[y,makeYear(y)])),files:new Map(),warnings:[]};const before=JSON.stringify(w.manifest);expect(()=>addYear(w,2669,false)).toThrow("ขีดจำกัด");expect(JSON.stringify(w.manifest)).toBe(before);expect(w.years[2669]).toBeUndefined();});
  it("คัดลอกหมวดกำหนดเองจนรวมทะเบียนใหม่เกิน150ไม่แก้แฟ้ม",()=>{const data=year();const template=data.rules.rules.find(r=>r.id==="income-doc")!;data.rules.rules=Array.from({length:150},(_,i)=>({...template,id:`custom-${i}`}));data.profile.selectedCategories=data.rules.rules.map(r=>r.id);const w:Workspace={manifest:{schemaVersion:1,id:newId(),name:"แฟ้ม",revision:0,createdAt:"",updatedAt:"",years:[2569]},years:{2569:data},files:new Map(),warnings:[]};expect(()=>addYear(w,2570,true)).toThrow("ขีดจำกัด");expect(w.years[2570]).toBeUndefined();expect(addYear(w,2570,false).years[2570]).toBeDefined();});
  it("หมวดที่สนใจไม่ซ้ำ และปฏิเสธเกินจำนวนที่schemaบันทึกได้",()=>{expect(makeYear(2569,["life","life"]).profile.selectedCategories).toEqual(["life"]);expect(()=>makeYear(2569,Array.from({length:151},(_,i)=>`custom-${i}`))).toThrow();});
+});
+
+// Fictional fixtures (สมมติ): reviewed 2569 catalogue and supported activation gates.
+describe("reviewed 2569 category limits",()=>{
+ const fictional=(id:string,amount:number,extra:Partial<TaxRecord>={})=>rec(id,amount,{}, {title:"ทดสอบวงเงินสมมติ",...extra});
+ it("validates the reviewed bundle and keeps pending catalogue caps unknown",()=>{
+  const rules=getRules(2569);expect(importRules(rules,2569)).toEqual(rules);
+  expect(rules.version).toBe("2569.3-reviewed-2026-10-27");
+  for(const id of ["adopted-child","art-purchase","cctv","maternity","social-39","social-40"]){const rule=rules.rules.find(r=>r.id===id)!;expect(rule.status).toBe("pending");expect(rule.cap).toBeNull();}
+  expect(rules.sharedCaps).toEqual({"life-health":B(100000),retirement:B(500000),"thai-esg":B(300000)});
+ });
+ it.each(["spouse-life","teacher-fund"])("%s uses certified actual paid only and never confirms itself",id=>{
+  const cap=id==="spouse-life"?10000:500000;
+  for(const amount of [0,cap,cap+10000]){const data=year(5000000);data.records=[fictional(id,amount)];expect(category(data,id).allowed).toBe(B(Math.min(amount,cap)));}
+  for(const eligibility of ["unchecked","ineligible","pending"] as const){const data=year();data.records=[fictional(id,cap,{eligibility,documentStatus:"complete"})];expect(category(data,id).allowed).toBe(0);}
+  const data=year();data.records=[fictional(id,cap,{eligibleAmount:B(3000)})];expect(category(data,id).allowed).toBe(B(3000));
+ });
+ it("teacher fund consumes the existing retirement pool and NSF still caps at 30000",()=>{
+  const data=year(5000000);data.records=[fictional("teacher-fund",490000),fictional("nsf",40000),fictional("rmf",500000)];
+  expect(calculate(data).deductions).toBe(B(500000));
+  const nsf=year();nsf.records=[fictional("nsf",40000)];expect(category(nsf,"nsf").allowed).toBe(B(30000));
+ });
+ it("every pending category stays excluded even with confirmed complete documents",()=>{
+  for(const rule of getRules(2569).rules.filter(r=>r.status==="pending")){
+   const data=year();data.records=[fictional(rule.id,300000,{documentStatus:"complete"})];
+   expect(category(data,rule.id).allowed,rule.id).toBe(0);expect(calculate(data).deductions,rule.id).toBe(0);
+  }
+ });
+ it("pension's total can exceed the additional-portion ceiling without double counting",()=>{
+  const data=year(5000000);data.records=[fictional("pension",300000)];
+  expect(category(data,"pension").allowed).toBe(B(300000));expect(calculate(data).deductions).toBe(B(300000));
+ });
+ it("a qualifying second child adds 30000, not another 60000",()=>{
+  const data=year();data.records=[rec("child",0,{qualifyingCount:2},{title:"บุตรสมมติ"}),rec("child-additional",0,{qualifyingCount:1},{title:"ส่วนเพิ่มสมมติ"})];
+  expect(calculate(data).deductions).toBe(B(90000));
+ });
+ it("historical ZIP retains its own rules and totals through roundtrip",async()=>{
+  const original=await importZip(new Uint8Array(await readFile("examples/fictional-tax-2569.zip")));
+  const snapshot=structuredClone(original.years[2569].rules),before=calculate(original.years[2569]);
+  expect(snapshot.version).not.toBe(getRules(2569).version);
+  const reopened=await importZip(await exportZip(original));
+  expect(reopened.years[2569].rules).toEqual(snapshot);expect(calculate(reopened.years[2569])).toEqual(before);
+  const replacement=replaceYearRules(original.years[2569],getRules(2569));
+  expect(replacement.rules.version).toBe(getRules(2569).version);expect(original.years[2569].rules).toEqual(snapshot);
+  expect(replacement.records.map(r=>r.attachments)).toEqual(original.years[2569].records.map(r=>r.attachments));
+ });
+ it("recorded custom categories cannot be removed by a public bundle replacement",()=>{
+  const data=year();const custom={...data.rules.rules.find(r=>r.id==="income-doc")!,id:"custom-fictional",name:"เอกสารสมมติ"};
+  data.rules.rules.push(custom);data.records=[fictional(custom.id,123)];
+  expect(()=>replaceYearRules(data,getRules(2569))).toThrow("ชุดกฎใหม่ลบหมวด");expect(data.records).toHaveLength(1);expect(data.rules.rules).toContain(custom);
+ });
 });

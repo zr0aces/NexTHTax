@@ -59,3 +59,10 @@
 .fixed-choice{grid-template-columns:1fr}
 @media(min-width:800px){.fixed-row{grid-template-columns:1.1fr 1.6fr auto}.fixed-readonly{justify-self:end}}
 @media(max-width:650px){.fixed-panel{padding:16px}.fixed-row{padding:14px}.fixed-stepper input[type=number]{width:88px}.fixed-summary strong{font-size:20px}}
+
+/* Reference ceilings remain visually separate from calculated claims. */
+.category-limit { display: flex; flex-direction: column; gap: 4px; margin: 12px 0; font-size: .8rem; line-height: 1.6; color: var(--text-muted, #59636b); overflow-wrap: anywhere; }
+.category-limit strong { font-size: .82rem; color: inherit; }
+.category-limit.is-pending { border-left: 3px solid #c38a24; padding-left: 10px; }
+.category-choice .category-limit { margin: 8px 0 0; }
+.category-limit .limit-description { font-size: .78rem; }

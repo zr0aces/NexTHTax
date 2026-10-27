@@ -199,5 +199,6 @@ test("category chooser omits fixed allowances but keeps document categories", as
  await page.getByRole("button", {name: /ดูหมวดทั้งหมด/}).click();
  const dialog = page.getByRole("dialog");
  await expect(dialog.locator(".category-choice").first()).toBeVisible();
- for (const name of ["บุตร", "บิดามารดา", "คู่สมรส"]) await expect(dialog.locator(".category-choice strong", {hasText: new RegExp(`^${name}`)})).toHaveCount(0);
+ for (const name of ["บุตรที่เข้าเงื่อนไข", "บุตรคนที่ 2 เป็นต้นไป เกิดตั้งแต่ 2561", "อุปการะบิดามารดา", "คู่สมรสไม่มีเงินได้", "อุปการะคนพิการหรือทุพพลภาพ"]) await expect(dialog.locator(".category-choice strong", {hasText: new RegExp(`^${name}$`)})).toHaveCount(0);
+  await expect(dialog.getByRole("checkbox", {name: /บุตรบุญธรรม/})).toBeVisible();
 });
