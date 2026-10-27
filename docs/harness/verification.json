@@ -3,14 +3,14 @@
   "rulesVersion": "2569.3-reviewed-2026-10-27",
   "typecheck": "passed",
   "unitAndIntegration": {
-    "passed": 194,
+    "passed": 195,
     "failed": 0,
     "testFiles": 7
   },
   "chromiumBrowser": {
     "passed": 23,
     "failed": 0,
-    "durationSeconds": 26.3
+    "durationSeconds": 25.3
   },
   "staticBuild": {
     "passed": true,
@@ -70,5 +70,26 @@
   "crossBrowser": "not executed on Safari/Firefox",
   "screenReader": "not tested",
   "planValidation": "passed strict; zero warnings and failures",
-  "notes": "Unverified categories stay excluded; no automatic snapshot upgrade, schema migration, new dependencies, commit, push or deployment. Source ledger documents two activation gates and unresolved laws."
+  "notes": "Unverified categories stay excluded; no automatic snapshot upgrade, schema migration, new dependencies, commit, push or deployment. Source ledger documents two activation gates and unresolved laws.",
+  "codeReview": {
+    "commit": "8dc66be7666386abce96f481543516cf347232a1",
+    "base": "658c67eebf0ddfb891e2c163c01f3141bbc60fcd",
+    "scope": "last commit plus working-tree corrections, not full-codebase audit",
+    "rounds": 2,
+    "standards": {
+      "initialFindings": 1,
+      "hardInvariantViolations": 0,
+      "remainingFindings": 0
+    },
+    "spec": {
+      "initialFindings": 1,
+      "remainingFindings": 0
+    },
+    "fixes": [
+      "clear previous error on successful no-op rules import",
+      "preserve actual source-review dates for 14 content-only rule edits"
+    ],
+    "regressionProof": "date test and prior-error E2E assertion failed before fixes, passed after fixes",
+    "committed": false
+  }
 }

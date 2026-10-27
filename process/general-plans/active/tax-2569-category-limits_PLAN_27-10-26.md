@@ -201,3 +201,8 @@ Next Step: implementation complete; await user review, with no release actions a
 - Tests were developed alongside UI integration rather than completed before integration; all specified behavioral gates passed before completion. Existing category-chooser E2E assertion was narrowed to fixed claims so the new pending adoption document category is allowed. No missing persisted facts were introduced.
 - Important limits: unresolved legal measures remain pending, browser cannot certify backup download completion, native OS picker/Safari/Firefox/screen reader/live hosting untested, and build retains a chunk-size warning. Full results are in `docs/verification.md` and `docs/harness/verification.json`.
 - No commit, push, deploy, dependency addition or historical fixture replacement. Next Step: stop implementation; release only on an explicit user request.
+
+
+## Post-commit review corrections — 2026-10-27
+
+User requested code-review of commit `8dc66be`, fixes and review loop. Applied the same approved plan's feedback/snapshot-audit contracts: clear stale errors after successful no-op import; restore source-review dates for 14 description-only rule changes without altering versions, caps, formulas or statuses. Added red-before/green-after regression checks. Independent Standards and Spec review round 2 reported zero remaining actionable findings in last commit plus corrections. Final required gates passed: typecheck, 195 unit/integration tests, build, 23 E2E tests (25.3 seconds), Thai PDF (4 pages, text and first-page raster inspection). Results are in both verification records. No commit, push or deploy of these corrections is authorized by the review request. Next Step: stop with verified local fixes; await an explicit release/commit request.

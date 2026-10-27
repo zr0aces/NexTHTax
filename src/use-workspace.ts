@@ -50,7 +50,7 @@ export function useWorkspace(){
    assertTarget();
    const data=expected.years[expectedYear];
    const replacement=replaceYearRules(data,rules);
-   if(replacement===data){setNotice("หลักเกณฑ์ไม่เปลี่ยน ยังคงใช้ชุดกฎเดิม ไม่ได้ติดตั้งรุ่นใหม่");return true;}
+   if(replacement===data){setError("");setNotice("หลักเกณฑ์ไม่เปลี่ยน ยังคงใช้ชุดกฎเดิม ไม่ได้ติดตั้งรุ่นใหม่");return true;}
    const candidate:Workspace={...expected,years:{...expected.years,[expectedYear]:replacement}};
    assertCarrySources(candidate);
    await downloadBackupZip(expected,`tax-before-rules-${expectedYear}.zip`);

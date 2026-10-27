@@ -102,6 +102,7 @@ test("cancel, wrong year and metadata-only rule imports leave the snapshot uncha
  const wrong=structuredClone(rules);wrong.taxYear=2570;await previewRules(page,wrong);await expect(page.getByRole("alert")).toContainText("ชุดกฎไม่ตรงกับปีภาษี");await page.keyboard.press("Escape");
  const metadata=structuredClone(rules);metadata.version="fictional-metadata-only";await previewRules(page,metadata);await page.getByRole("button",{name:"สำรองและยืนยันใช้ชุดใหม่",exact:true}).click();
  await expect(page.getByText("หลักเกณฑ์ไม่เปลี่ยน ยังคงใช้ชุดกฎเดิม ไม่ได้ติดตั้งรุ่นใหม่",{exact:true})).toBeVisible();
+ await expect(page.getByRole("alert")).toHaveCount(0);
  const after=unzipSync(await downloadZip(page));expect(after["years/2569/rules-snapshot.json"]).toEqual(before["years/2569/rules-snapshot.json"]);
 });
 

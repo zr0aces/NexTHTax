@@ -94,6 +94,15 @@ describe("ขีดจำกัดปีและหมวดก่อนแก�
 // Fictional fixtures (สมมติ): reviewed 2569 catalogue and supported activation gates.
 describe("reviewed 2569 category limits",()=>{
  const fictional=(id:string,amount:number,extra:Partial<TaxRecord>={})=>rec(id,amount,{}, {title:"ทดสอบวงเงินสมมติ",...extra});
+ it("content-only clarifications preserve source-review dates from the legal ledger",()=>{
+  const rules=getRules(2569);
+  for(const id of ["spouse","life","health","parent-health","pension","social-33","gpf","nsf","thai-esg","thai-esgx-new","thai-esgx-carry","donation","political","solar-rooftop"]){
+   expect(rules.rules.find(r=>r.id===id)!.reviewedAt,id).toBe("2026-10-25");
+  }
+  for(const id of ["spouse-life","teacher-fund"]){
+   expect(rules.rules.find(r=>r.id===id)!.reviewedAt,id).toBe("2026-10-27");
+  }
+ });
  it("validates the reviewed bundle and keeps pending catalogue caps unknown",()=>{
   const rules=getRules(2569);expect(importRules(rules,2569)).toEqual(rules);
   expect(rules.version).toBe("2569.3-reviewed-2026-10-27");
