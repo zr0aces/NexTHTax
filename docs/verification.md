@@ -1,3 +1,55 @@
+# ตรวจเตรียมเผยแพร่ v0.3.0 — 29 ตุลาคม 2569
+
+ผู้ใช้ปรับเวอร์ชันเป็น0.3.0แล้ว และสั่งcommit/push/deployหลังอนุมัติการแก้release tooling ตรวจ diffแล้วพบว่าpackage.json, lockfileสองตำแหน่งและAPP_VERSIONเปลี่ยนเฉพาะเวอร์ชัน0.2.0→0.3.0 ไม่เปลี่ยนdependenciesหรือกฎภาษี
+
+รันชุดตรวจจริงสำหรับเวอร์ชันใหม่นี้ตามลำดับครบ: Typecheckผ่าน → tests **242/242** (รวมrelease55) → Buildผ่าน (224precache assets) → Chromium E2E **23/23** (25.3วินาที) → Thai PDFผ่าน **4หน้า** (ข้อความ4ค่าและraster/เปิดตรวจหน้าแรก) และversion:checkผ่านครบ4สำเนา0.3.0
+
+บันทึกนี้จับผลก่อนสร้างcommitเผยแพร่ การอนุญาตให้commit/push/deployครั้งนี้เป็นคำสั่งใหม่หลังจบreview จึงแทนข้อจำกัดไม่เผยแพร่ในขั้นreviewด้านล่าง ไม่สร้างGit tagเพิ่มเพราะPagesเผยแพร่จากmain คำเตือนchunkเกิน500kBและขอบเขตแพลตฟอร์มที่ยังไม่ทดสอบยังเหมือนเดิม
+
+---
+
+# ตรวจแก้ release tooling — 29 ตุลาคม 2569
+
+แผนอนุมัติ: `process/general-plans/active/release-review-fixes_PLAN_29-10-26.md` ขอบเขต4 commits `51ea677..2d8fbd7` รวมการแก้ใน working tree ไม่ใช่ full-codebase audit เวอร์ชันจริงยัง **0.2.0** ไม่แก้ package/lock/version.ts, schema หรือกฎภาษี
+
+## Standards
+
+รอบแรกพบ5จุด: dirty tree/งานอื่นหลุดเข้า release commit, tagล้มหลังcommitแต่รายงานrollbackผิด, verificationไม่ครบห้าขั้น, lockfileตรวจไม่ครบสองตำแหน่ง และSemVerผิดรูปแบบ/เกินsafe integer การแก้ใช้ขอบเขตสามไฟล์เวอร์ชันเดิม ตรวจtree/index/tagก่อนเขียนและก่อนcommit, ตรวจเวอร์ชันครบ4สำเนา, ตรวจSemVer/overflow/arguments และรันครบห้าverification gates
+
+## Spec
+
+รอบแรกพบ4จุดจากสัญญาCLI: clean-tree, rollback, SemVer และlockfile (ไม่มีrelease product specแยก จึงใช้CLI help/JSDocกับแผนอนุมัติ) รอบสองพบอีกหนึ่งช่องโหว่ร่วมกับStandards: `git commit --only`ไม่ป้องกันhookเพิ่มไฟล์อื่น จึงเพิ่มguardหลังpre-commit/prepare-commit-msg/commit-msg โดยยังเรียกhookเดิมพร้อมarguments/stdin/environmentและคงhookอื่น รวมreference-transaction/post-commit ตรวจcommit/ไฟล์อีกครั้งก่อนtag ไม่ปิดข้ามhookเพื่อให้releaseผ่าน
+
+ทั้งสองแกนตรวจรอบสามแล้วเหลือ **0 open actionable findings** ในขอบเขตที่ระบุ
+
+## กลไกกู้คืนและขอบเขต
+
+- ก่อนcommitล้มเหลว คืนเฉพาะbytesที่ตรงกับoutputของการรันนี้ ไม่เขียนทับindependent edits พยายามคืนทุกไฟล์และรายงานpathที่กู้ไม่สำเร็จโดยไม่ซ่อนerrorเดิม
+- Native Git path-limited commitเป็นเจ้าของtemporary index ไม่resetประวัติหรือunstageงานผู้ใช้อัตโนมัติ Guardใช้hook directoryชั่วคราวเฉพาะinvocation ไม่แก้configถาวร
+- หลังcommitสำเร็จ ถ้าการตรวจหลังcommitหรือtagล้มเหลว เก็บcommitและข้อมูลไว้ ออกnonzeroพร้อมcommit IDและคำแนะนำตรวจ/กู้เอง ไม่อ้างว่าrollbackประวัติแล้ว
+- ตรวจGit refก่อนเขียนด้วย เพราะSemVerที่ถูกต้องบางค่า เช่น build identifierลงท้าย `.lock` ใช้เป็นGit tagไม่ได้
+- Dry-run/คำสั่งผิด/สำเนาversionไม่ตรงต้องไม่เขียนไฟล์หรือสร้างcommit/tag ไม่มีdependencyใหม่
+
+## Regression evidence
+
+ใช้repositoryชั่วคราวและข้อมูลสมมติทั้งหมด ไม่เรียกreleaseจริงบนproject: ชุดแรกพบ32 failuresบนโค้ดเดิม ก่อนแก้จน43ผ่าน จากนั้นเพิ่ม5กรณีredเกี่ยวกับhookstaging/Git ref/postcommit แล้วแก้จนผ่าน เพิ่มcustom hooks, explicit disabled-hooks configuration, missing files, noGitและsymlink safety สรุปrelease testsผ่าน **55/55**
+
+การทดสอบใช้Gitจริงในfixtureสำหรับindex/history/tag/hook ส่วนverification commandsใช้stageสั้นในfixtureเพื่อพิสูจน์ลำดับและfailureครบ5ขั้นโดยไม่วนรันtestจริงซ้อนกัน ชุดverificationจริงของprojectรันแยกดังตาราง
+
+| ลำดับ | ผลรอบสุดท้าย |
+|---|---|
+| `npm run typecheck` | ผ่าน |
+| `npm test` | ผ่าน **242/242**, 7ไฟล์; release tests55รายการ |
+| `npm run build` | ผ่าน, precache224assets; คำเตือนchunkเกิน500kBเดิมยังอยู่ |
+| `npm run test:e2e` | Chromium **23/23**, 23.5วินาที |
+| `node scripts/verify-pdf.mjs` | ผ่าน PDF4หน้า, expected text4ค่า, rasterหน้าแรกและเปิดตรวจแล้ว |
+| `npm run version:check` | ผ่านทั้งpackage, lock top-level, lock root-package, APP_VERSION =0.2.0 |
+| แผน/diff | strict plan validation, whitespace, protected-file diffและindex checksผ่าน |
+
+ข้อจำกัด: ทดสอบrelease CLI/Git hooksบนLinuxhostนี้ ยังไม่ได้ยืนยันWindows/macOS; browserยังไม่ทดสอบSafari/FirefoxหรือOS pickerจริง และไม่ได้ทดสอบlive deployment รอบนี้ ไม่มีcommit/tag/push/deployในrepositoryจริง (การกระทำGitในtestsอยู่ในtemporary repositoriesเท่านั้น) ข้อจำกัดกฎหมายภาษีเดิมไม่เปลี่ยน
+
+---
+
 # ตรวจแก้หลัง code review — 27 ตุลาคม 2569
 
 ขอบเขต: commit `8dc66be` เทียบ parent `658c67e` และการแก้ใน working tree ไม่ใช่การรับรองว่า audit ทุกส่วนของ codebase แล้ว

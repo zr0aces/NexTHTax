@@ -1,11 +1,12 @@
 {
-  "date": "2026-10-27",
+  "date": "2026-10-29",
   "rulesVersion": "2569.3-reviewed-2026-10-27",
   "typecheck": "passed",
   "unitAndIntegration": {
-    "passed": 195,
+    "passed": 242,
     "failed": 0,
-    "testFiles": 7
+    "testFiles": 7,
+    "releaseTooling": 55
   },
   "chromiumBrowser": {
     "passed": 23,
@@ -61,8 +62,6 @@
     ]
   },
   "visualReview": [
-    "overview desktop",
-    "category limits mobile",
     "Thai PDF first page"
   ],
   "npmAudit": "not run for this delivery",
@@ -70,26 +69,43 @@
   "crossBrowser": "not executed on Safari/Firefox",
   "screenReader": "not tested",
   "planValidation": "passed strict; zero warnings and failures",
-  "notes": "Unverified categories stay excluded; no automatic snapshot upgrade, schema migration, new dependencies, commit, push or deployment. Source ledger documents two activation gates and unresolved laws.",
+  "notes": "Verification capture for user-prepared 0.3.0 and approved release-tooling fixes. Tax rules/schema/dependencies unchanged. User subsequently authorized commit/push/Pages deployment; review-era no-release statements describe the earlier stage. Existing platform coverage limits and chunk-size warning remain.",
   "codeReview": {
-    "commit": "8dc66be7666386abce96f481543516cf347232a1",
-    "base": "658c67eebf0ddfb891e2c163c01f3141bbc60fcd",
-    "scope": "last commit plus working-tree corrections, not full-codebase audit",
-    "rounds": 2,
+    "commit": "2d8fbd75379bb9fd68f6f744fb0876c83ec40ef8",
+    "base": "51ea677ccd8e4b214e451f6feb3ba62a00504a68",
+    "scope": "last four commits plus approved release-tooling corrections, not full-codebase audit",
+    "rounds": 3,
     "standards": {
-      "initialFindings": 1,
-      "hardInvariantViolations": 0,
+      "initialFindings": 5,
       "remainingFindings": 0
     },
     "spec": {
-      "initialFindings": 1,
+      "initialFindings": 4,
       "remainingFindings": 0
     },
-    "fixes": [
-      "clear previous error on successful no-op rules import",
-      "preserve actual source-review dates for 14 content-only rule edits"
-    ],
-    "regressionProof": "date test and prior-error E2E assertion failed before fixes, passed after fixes",
+    "roundTwoFinding": "Git hooks can add unrelated files to native path-limited commits; fixed with delegating precommit-phase guards and postcommit validation",
+    "regressionProof": "32 failures reproduced on original release code; five additional hook/ref/postcommit cases reproduced before correction; final 55 release cases pass",
     "committed": false
+  },
+  "appVersion": "0.3.0",
+  "releaseTooling": {
+    "passed": 55,
+    "fixtureData": "fictional (สมมติ)",
+    "gitBoundary": "real Git operations only in disposable temporary repositories",
+    "verificationPipeline": "five-stage order and each failure exercised using short fixture stages; actual project gates executed separately",
+    "versionConsistency": "all four canonical copies agree at 0.3.0",
+    "hookPolicy": "delegate original hooks, validate staged ownership and exact outputs before commit, preserve other hooks/config, validate committed/current outputs before tag",
+    "recoveryPolicy": "before commit restore only exact owned outputs; after commit retain history and report manual recovery; never reset history",
+    "realProjectReleaseActions": "user authorized commit/push/Pages deployment after review; pending at this verification capture",
+    "platformsVerified": [
+      "Linux"
+    ]
+  },
+  "publicationPreparation": {
+    "version": "0.3.0",
+    "userPreparedVersionBump": true,
+    "verification": "all five gates passed again for 0.3.0",
+    "capturedBeforeReleaseCommit": true,
+    "gitTagRequested": false
   }
 }
